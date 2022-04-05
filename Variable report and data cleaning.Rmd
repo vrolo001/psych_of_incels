@@ -1,0 +1,263 @@
+---
+title: "Report of variables used in survey"
+author:
+- William Costello, Swansea University
+- Vania Rolón, Brunel University London
+- Andrew Thomas, Swansea University
+- David Schmitt, Brunel University London
+output: 
+  html_document:
+    toc: yes
+---
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+raw <- read_csv("C:/Users/Vania/Desktop/psychology of incels/incel raw data.csv")
+```
+
+# Survey Variables
+
+## Demographics
+
+* Sex (*Sex*), where originally 1 = Male, 2 = Female, and 3 = Intersex; however because for *gender* 0 = Male and 1 = Female, I recoded *Sex* into *sex* to keep lowercase consistency in variable naming and to have *sex* and *gender* values match more closely. Moving forward, 0 = Male, 1 = Female, and 2 = Intersex
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+```
+```{r}
+data <- raw %>%
+  rename(sex = Sex)
+data$sex <- as.numeric(plyr::revalue(as.character(data$sex), c("1" = "0", "2" = "1", "3" = "2")))
+```
+
+* Gender (*gender*), where 0 = Male, 1 = Female, 2 = Non-binary/third gender, 3 = Prefer not to say, 4 = other (*gender_4_TEXT* textbox), 5 = Transgender male, 6 = Transgender female 
+
+* Age (*age*) 
+
+* Height (*height*), where participants could complete different boxes to specify their height in feet (*height_40_TEXT*) and inches (*height_41_TEXT*) or in centimetres (*height_42_TEXT*). A column *height_cm* was created transforming *height_40_TEXT* and *height_41_TEXT* into cms. Then, these values and those in the *height_42_TEXT* column were placed under a single column *height*
+
+```{r}
+data <- data %>%
+  mutate(height_cm = ((height_40_TEXT*30.48) + (height_41_TEXT*2.54)), 
+         height = ifelse(is.na(height_cm), height_42_TEXT, height_cm))
+
+```
+
+* Country (*country*), where 0 = United States, 1 = United Kingdom, 2 = Other (*country_2_TEXT* textbox), and 3 = Ireland. 
+
+* Ethnicity (*ethnic*), where participants could select multiple options and 1 = White, 2 = Black, 3 = South/Southeast Asian, 4 = Eastern Asian, 5 = Latino, 6 = Mixed, 7 = Other (*ethnic_7_TEXT* textbox), 8 = Middle Eastern
+
+* Sexual orientation (*sexorien*), where 0 = heterosexual, 1 = gay, 2 = lesbian, 3 = bisexual, 4 = pansexual, 5 = questioning, 6 = prefer not to say, 7 = other (*sexorien_7_TEXT*)
+
+* Employment status (*employ*) where 1 = full-time, 2 = part-time, 3 = student, 4 = self-employed, 5 = NEET (not in education employment or training), 6 = retired
+
+* Highest education received (*edu*), where 1 = primary/elementary school, 2 = secondary/high school, 3 = undergraduate, 4 = postgraduate/masters, 5 = PhD, 6 = None
+
+* Political orientation (*politic*) where 1 = left wing, 2 = centre left, 3 = centre, 4 = centre right, 5 = right wing, 6 = not political
+
+* Mental health condition (*M Health*) where 0 = Not living with a mental health condition, 1 = Yes, clinically diagnosed, 2 = Yes, undiagnosed
+
+* Physical health condition (*P Health*) where 1 = Yes, undiagnosed, 2 = Yes, clinically diagnosed, 3 = not living with a physical health condition
+
+* Living arrangements (*living*), where 1 = living alone,2 = living with housemates, 3 = co-habiting w/a romantic partner, 4 = living in family home w/parents/carers, 5 = homeless, 6 = student accomodation
+
+* Feminist identification (*feminist*), where 1 = definitely yes, 2 = probably yes, 3 = not sure, 4 = probably not, 5 = definitely not
+
+* Incel identification (*incel*), where 0 = no and 1 = yes
+
+## Experiences of dating, sex, and romance
+
+* Relationship status (*relation*) where 1 = single, 2 = dating around or seeing someone, 3 = in a commited relationship, 4 = married, 5 = divorced, 6 = widowed, 7 = in a consensually non-monogamous relationship
+
+* Level of inceldom (*incelscale_1* to *incelscale_5*), 5-point Likert scale where higher scores = higher agreement with having resentment because of lack of romantic prospects, feeling romantic/sexual loneliness, hopelessness of obtaining a relationship, believing people are shallow when choosing partners, etc.
+
+There are not enough items to test for more than one factor using EFA or PCA. However, looking at Cronbach's alpha can give an initial measure for reliability. Indeed, the 5 items have a Cronbach's α = .78.
+
+```{r message=FALSE, warning=FALSE}
+library(psych)
+```
+```{r}
+inceldom <- data %>%
+  select(c(incelscale_1:incelscale_5)) %>%
+  filter_at(vars(incelscale_1:incelscale_5), all_vars(!is.na(.)))
+alpha(inceldom)$total$raw_alpha
+```
+
+* Reasons for being single (*RBS_1* to *RBS_37*, adapted from Apostolou, 2019), participants could select multiple answers for being single, some of which were internal, and others external. An RBS_38 item allowed for an "other" option
+  + Internal reasons(RBS_int): RBS_1 to RBS_23, RBS_25, RBS_27, RBS_29 to RBS_31
+  + External reasons(RBS_ext): RBS_24, RBS_26, RBS_28, RBS_32 to RBS_37
+  
+```{r}
+data <- data %>%
+  mutate(RBS_int = select(., c(RBS_1:RBS_23, RBS_25, RBS_27, RBS_29, RBS_30, RBS_31)) %>%
+           rowSums(na.rm = TRUE),
+         RBS_ext = select(., c(RBS_24, RBS_26, RBS_28, RBS_32:RBS_37))%>%
+           rowSums(na.rm = TRUE))
+```
+
+* Last time having a romantic or sexual encounter (*hadsex*), where 1 = never had a romantic or sexual encounter, 2 = over3 years ago, 3 = over a year ago, 4 = over 6 months ago, 5 = within the last 6 months
+
+* Level of sexual experience (*sex_exp*) where 0 = none, 1 = some kissing, 2 = oral sex, 3 = sexual intercourse
+
+* Number of sexual partners and of romantic relationships (*sexpartners_5* and *_6*, respectively; just tick options on whether the participant has had either) where *sexpartners_5_TEXT* and *sexpartners_6_TEXT* provide the estimated actual numbers
+
+* Currently seeking a romantic relationship (*seekrelation*), where 1 = definitely yes, 2 = probably yes, 3 = might or might not, 4 = probably not, 5 = definitely not, 6 = no (because I am already in a commited relationship or married)
+
+* Porn weekly frequency (*porn*) where numbers indicate average weekly occassions of viewing porn (e.g., 4 would mean participant searched for porn an average of 4 times in a week)
+
+* Feelings regarding polyamory (*poly*), scale ranging from -2(very negative) to 2(very positive), with 0 = neutral
+
+* Considering being a secondary partner to someone in a polyamorous relationship (*polypartner*), 5-point scale where 1 = definitely yes and 5 = definitely no, with 3 = not sure
+
+* Desire to have children (*kids*), where 1 = definitely yes (even if by myself or with a partner), 2 = probably yes (even if by myself or with a partner), 3 = not sure, 4 = probably no, 5 = definitely no, 6 = definitely yes (but only with a commited partner), 7 = probably yes (but only with a commited partner), 8 = already have children and do not want any more, 9 = no longer able to have children (due to age or health reasons)
+
+* Sociosexuality (from Penke & Asendorpf, 2008), measures sociosexual behaviours, attitudes, and desires on a 9-point Likert scale where higher scores correspond to a more unrestricted sociosexuality. This survey only measured attitudes and desires
+  + Sociosexual attitudes (*soiatt_1* to *soiatt_3*), where *soiatt_3* is reverse-coded, Cronbach's α = .80
+  + Sociosexual desires (*soides_1* to *soides_3*), Cronbach's α = .81
+  
+```{r}
+data <- data %>%
+  mutate(soiatt_3R = 10-soiatt_3) %>%
+  rowwise() %>%
+  mutate(soiatt = mean(c(soiatt_1, soiatt_2, soiatt_3R), na.rm = TRUE),
+         soides = mean(c(soides_1, soides_2, soides_3), na.rm = TRUE)) %>%
+  ungroup()
+
+(data %>%
+  select(c(soiatt_1, soiatt_2, soiatt_3R)) %>%
+  alpha(.))$total$raw_alpha
+
+(data %>%
+  select(c(soides_1, soides_2, soides_3)) %>%
+  alpha(.))$total$raw_alpha
+
+```
+
+* Willingness to engage in forced sex if possible to get away with it (*forcesex*), 1-5 scale, with 1 = strongly disagree and 5 = strongly agree
+
+## Experiences of incel identity (presented only to those who answered yes to the *incel* item in demographics)
+
+* Capacity in which participant identifies as an incel (*incelID*), where 1 = both offline and online, 2 = online only, 3 = offline only
+
+* Forum membership (*forums*) where 0 = no and 1 = yes, plus textbox for participants answering 1 to write which incel forums they participate in
+
+* Belief in being an incel for the rest of their life (*incel4life*), scale where 1 = definitely yes, and 5 = definitely  not
+
+* Subscribing to the blackpill worldview (*blackpill*), scale where 1 = definitely yes, and 5 = definitely  not
+
+* Perceived wellbeing improvement as a result of forum use (*forumWellbeing*, shown if *forums* = 1), scale where 1 = much better and 5 = much worse
+
+* Changes in opinion of women since joining forums (*femopinion*, shown if *forums* = 1), where 1 = become much improved, and 5 = become much worse
+
+* Perceived social opinion towards incels (*socialop_1* to *socialop_7*). 5-point Likert scale
+  + Society thinks incels only have themselves to blame
+  + Society has sympathy for incels
+  + Others (non incels) want me to have romantic success
+  + Other incels want me to have romantic success
+  + Incels are a danger to society
+  + Incels are a danger to themselves
+  + Incels hate women
+
+## Perceptions of incels 
+
+* Familiarisation with the term prior to participation (*termincel*, shown if *incel* = 0), where 0 = no and 1 = yes
+
+* Incel criteria (*incelcrit_1* to *incelcrit_13*, shown if incel = 1 OR if *termincel* = 1), where participants could select multiple options from a list of characteristics if they thought these fit the criteria to be considered an incel. Item *incelcrit_13_TEXT* allowed for text entry
+
+* Opinion towards incels (*socialpercept_1* to *socialpercept_7*, shown if *termincel* = 1), same items from socialop, but phrased for the individual non-incel participant (e.g., "incels only have themselves to blame," and "I have sympathy for incels") 
+
+## Tendencies for interpersonal victimhood
+
+Four factors, 6 items in each,, except for rumination with 4 items, 5-point Likert scale, greater scores correspond to greater TIV. Due to original variable names being inconvenient for writing code, these were renamed as specified below:
+
+* Need for recognition (*TIV nfr_1* to *TIV nfr_6*, renamed to *NFR_1* to *NFR_6*, averaged construct *TIV_NFR*)
+* Moral elitism (*TIV ME_1* to *TIV ME_6*, renamed to *ME_1* to *ME_6*, averaged construct *TIV_ME*)
+* Lack of empathy (*TIV LoE_1* to *TIV LoE_6*,renamed to *LoE_1* to *LoE_6*, averaged construct *TIV_LoE*)
+* Rumination (*TIV rmn_1* to *TIV rmn_4*, renamed to *RUM_1* to *RUM_4* averaged construct *TIV_RUM*)
+
+All Cronbach's α were within reliable values
+
+```{r}
+names(data)[147:152] <- paste0("NFR_", 1:6)
+names(data)[153:158] <- paste0("ME_", 1:6)
+names(data)[159:164] <- paste0("LoE_", 1:6)
+names(data)[165:168] <- paste0("RUM_", 1:4)
+
+data <- data %>%
+  mutate(TIV_NFR = select(., c(NFR_1:NFR_6)) %>% rowMeans(na.rm = TRUE),
+         TIV_ME = select(., c(ME_1:ME_6)) %>% rowMeans(na.rm = TRUE),
+         TIV_LoE = select(., c(LoE_1:LoE_6)) %>% rowMeans(na.rm = TRUE),
+         TIV_RUM = select(., c(RUM_1:RUM_4)) %>% rowMeans(na.rm = TRUE),
+         TIV = select(., c(NFR_1:RUM_4)) %>% rowMeans(na.rm = TRUE))
+
+alpha_NFR <- (alpha(select(data, c(NFR_1:NFR_6))))$total$raw_alpha
+alpha_ME <- (alpha(select(data, c(ME_1:ME_6))))$total$raw_alpha
+alpha_LoE <- (alpha(select(data, c(LoE_1:LoE_6))))$total$raw_alpha
+alpha_RUM <- (alpha(select(data, c(RUM_1:RUM_4))))$total$raw_alpha
+alpha_TIV <- (alpha(select(data, c(NFR_1:RUM_4))))$total$raw_alpha
+
+data.frame("Cronbach's alpha for TIV" = c(alpha_NFR, alpha_ME, alpha_LoE, alpha_RUM, alpha_TIV),
+                                      row.names =  c("Need for recognition", "Moral elitism", "Lack of empathy", "Rumination", "TIV"))
+
+```
+
+## Self-perceived mate value
+
+* Considertaion of plastic surgery for physical enhancement (*surgery*), 5-item scale where 1 = definitely yes and 5 = definitely not
+
+* Mate value scale (*MVS_1, MVS_2, MVS_2_1,* and *MVS_2_2*, Edlund & Sagarin, 2014), 7-point scale where 1 = extremely undesirable and 7 = extremely desirable. Cronbach's α = .93
+
+```{r}
+data <- data %>%
+  mutate(MVS = select(., c(MVS_1:MVS_2_2)) %>% rowMeans(na.rm = TRUE))
+(alpha(select(data, c(MVS_1:MVS_2_2))))$total$raw_alpha
+```
+
+## Minimum standards in mate preferences (adapted from Buss 1989 mate-preferences questionnaire)
+
+* Minimum score from 0 to 10 a person would need to meet in 15 traits for the participant to consider this person as a potential long-term romantic partner (*ownminprefer_1* to *ownminprefer_15*)
+
+* Minimum score from 0 to 10 the participant thinks women want a person to meet before considering this person as a potential a long-term romantic partner (*otherminpref_1* to *otherminpref_15*), where the 15 traits are the same as for ownminpref
+
+## Mental wellbeing
+
+* Depression (*NHSdepress_1* to *NHSdepress_8*, aggregated construct *PHQ9*),scale 0-3 corresponding to items in the PHQ9 (Kroenke et al., 2001), scores aggregated; higher scores = higher depression
+
+* Anxiety (*NHSdepress_9* to *NHSdepress_15*, aggregated construct *GAD*): scale 0-3 corresponding to items in the GAD7  (Spitzer et al., 2006); higher scores = higher anxiety
+
+* Three-item loneliness scale (*lonely_1* to *lonely_3*, aggregated construct *lonely*, from Hughes et al., 2004), scale 1-3, scores aggregated; higher scores = higher loneliness
+
+* Single-item for frequency of loneliness (*lone*), where 1 = often/always, 2 = some of the time, 3 = ocassionally, 4 = hardly ever, and 5 = never
+
+* Satisfaction with life (*Q75_1* to *Q75_5*,aggregated construct *SWL*, from Diener et al., 1985), 7-point Likert scale, scores aggregated, higher scores = higher satisfaction
+
+An administrative error at the moment of designing the survey led to ambiguity around whether missing values on scale-type questions were intentionally “skipped”, or whether participants had intended to indicate the minimum score automatically set on the scales (e.g., 0) but did not actually touch their screen to set this value. For variables such as *soiatt* and *soides*, the use of mean scores over sum scores and a wider range across the Likert-scale (e.g., 1-9) alleviates the impact of missing values, as, the wider the range of options, the less likely participants are to select values at either end. However, for scales that aggregate items, as opposed to averaging them, such as the PHQ9, GAD7, 3-item loneliness scale, and SWL, missing values risk giving the illusion of a participant's score being lower than it would be had all questions been answered. 
+
+As such, for analyses that use the mental health variables in this dataset, using listwise deletion would be more rigorous. For these purposes, columns *PHQ9_all*, *GAD_all*, *lonely_all*, and *SWL_all* were created, where only scores for participants who answered all items of the respective scales are included. Columns *PHQ9_mean*, *GAD_mean*, *lonely_mean*, and *SWL_mean* were also created.
+
+```{r}
+data <- data %>%
+  mutate(PHQ9 = select(., c(NHSdepress_1:NHSdepress_8)) %>% rowSums(na.rm = TRUE),
+         GAD = select(., c(NHSdepress_9:NHSdepress_15)) %>% rowSums(na.rm = TRUE),
+         lonely = select(., c(lonely_1:lonely_3)) %>% rowSums(na.rm = TRUE),
+         SWL = select(., c(Q75_1:Q75_5)) %>% rowSums(na.rm = TRUE))
+
+data$PHQ9_all <- if_else(complete.cases(select(data, c(NHSdepress_1:NHSdepress_8))) == TRUE, data$PHQ9, NaN)
+data$GAD_all <- if_else(complete.cases(select(data, c(NHSdepress_9:NHSdepress_15))) == TRUE, data$GAD, NaN)
+data$lonely_all <- if_else(complete.cases(select(data, c(lonely_1:lonely_3))) == TRUE, data$lonely, NaN)
+data$SWL_all <- if_else(complete.cases(select(data, c(Q75_1:Q75_5))) == TRUE, data$SWL, NaN)
+
+data <- data %>%
+  mutate(PHQ9_mean = select(., c(NHSdepress_1:NHSdepress_8)) %>% rowMeans(na.rm = TRUE),
+         GAD_mean = select(., c(NHSdepress_9:NHSdepress_15)) %>% rowMeans(na.rm = TRUE),
+         lonely_mean = select(., c(lonely_1:lonely_3)) %>% rowMeans(na.rm = TRUE),
+         SWL_mean = select(., c(Q75_1:Q75_5)) %>% rowMeans(na.rm = TRUE))
+
+data.frame("Cronbach's mental health" = c((alpha(select(data, c(NHSdepress_1:NHSdepress_8))))$total$raw_alpha, 
+                                          (alpha(select(data, c(NHSdepress_9:NHSdepress_15))))$total$raw_alpha, 
+                                          (alpha(select(data, c(lonely_1:lonely_3))))$total$raw_alpha,
+                                          (alpha(select(data, c(Q75_1:Q75_5))))$total$raw_alpha),
+                                      row.names =  c("Depression", "Anxiety", "Loneliness", "Satisfaction with life"))
+
+write_csv(data, "incel cleaned data.csv")
+```
