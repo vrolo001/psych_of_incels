@@ -1,0 +1,793 @@
+---
+title: "mental health analyses"
+author:
+  - William Costello, Swansea University
+  - Vania Rolón, Brunel University London
+  - Andrew Thomas, Swansea University
+  - David Schmitt, Brunel University London
+output:
+  html_document:
+    toc: yes
+---
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+library(tidyverse)
+library(psych)
+library(mosaic)
+library(ggpubr)
+library(car)
+library(rstatix)
+library(Hmisc)
+library(MoEClust)
+library(supernova)
+library(lm.beta)
+library(apaTables)
+library(probemod)
+library(modplot)
+library(interactions)
+data <- read_csv("C:/Users/Vania/Desktop/psychology of incels/incel cleaned data.csv")
+```
+
+The hypotheses regarding mental health variables were:
+
+* Incels will report lower-levels of wellbeing than non-incels, including higher-levels of depression, anxiety and loneliness, with lower-levels of life-satisfaction.
+
+* Incels will score higher on sociosexual-desire, and this increase in sociosexual-desire will be more related to low-levels of wellbeing in incels than non-incels.
+
+# Group differences between incel men and non-incel men
+
+## Assessing reliability for sample subset
+
+```{r}
+alphaNFR <- (alpha(select(data %>% filter(sex == 0), c(NFR_1:NFR_6))))$total$raw_alpha
+alphaME <- (alpha(select(data %>% filter(sex == 0), c(ME_1:ME_6))))$total$raw_alpha
+alphaLoE <- (alpha(select(data %>% filter(sex == 0), c(LoE_1:LoE_6))))$total$raw_alpha
+alphaRUM <- (alpha(select(data %>% filter(sex == 0), c(RUM_1:RUM_4))))$total$raw_alpha
+alphaTIV <- (alpha(select(data %>% filter(sex == 0), c(NFR_1:RUM_4))))$total$raw_alpha
+alphaMVS <- (alpha(select(data %>% filter(sex == 0), c(MVS_1:MVS_2_2))))$total$raw_alpha
+alphaPQ9 <- (alpha(select(data %>% filter(sex == 0), c(NHSdepress_1:NHSdepress_8))))$total$raw_alpha
+alphaGAD <- (alpha(select(data %>% filter(sex == 0), c(NHSdepress_9:NHSdepress_15))))$total$raw_alpha
+alphalone <- (alpha(select(data %>% filter(sex == 0), c(lonely_1:lonely_3))))$total$raw_alpha
+alphaSWL <- (alpha(select(data %>% filter(sex == 0), c(Q75_1:Q75_5))))$total$raw_alpha
+alphasoides <- (alpha(select(data %>% filter(sex == 0), c(soides_1, soides_2, soides_3))))$total$raw_alpha
+  
+data.frame("Cronbach's alpha for TIV" = c(alphaNFR, alphaME, alphaLoE, alphaRUM, alphaTIV,
+                                          alphaMVS, alphasoides, alphaPQ9, alphaGAD, alphalone, alphaSWL),
+                                      row.names =  c("Need for recognition", "Moral elitism", "Lack of empathy", "Rumination", "TIV",
+                                                     "Mate value", "SOI desire", "Depression", "Anxiety", "Loneliness", "Satisfaction with life"))
+```
+
+## Preparing for outliers and data filtering
+
+```{r}
+data_mh <- data %>%
+  dplyr::select(., (c(incel, sex, age, soides, MVS, 
+                      PHQ9_mean, GAD_mean, lonely_mean, SWL_mean, PHQ9_all, GAD_all, lonely_all, SWL_all,
+                      TIV_NFR, TIV_ME, TIV_LoE, TIV_RUM, TIV,
+                      ethnic_1:ethnic_7, country, 
+                      porn, forums, incel4life, blackpill, forumWellbeing, femopinion, feminist))) %>% #for exploratory purposes
+  filter(sex == 0 & incel == 0 | sex == 0 & incel == 1)
+
+data_mh <- data_mh %>%
+  group_by(incel) %>%
+  mutate(ageZ = scale(age),
+         soidesZ = scale(soides),
+         MVSZ = scale(MVS),
+         PHQ9Z = scale(PHQ9_all), GADZ = scale(GAD_all), lonelyZ = scale(lonely_all), SWLZ = scale(SWL_all),
+         PHQ9_meanZ = scale(PHQ9_mean), GAD_meanZ = scale(GAD_mean), lonely_meanZ = scale(lonely_mean), SWL_meanZ = scale(SWL_mean),
+         NFRZ = scale(TIV_NFR), MEZ = scale(TIV_ME), LoEZ = scale(TIV_LoE), RUMZ = scale(TIV_RUM), TIVZ = scale(TIV))%>%
+  ungroup()
+
+#averaged variables
+range(data_mh$ageZ, na.rm = TRUE) #3 outliers
+range(data_mh$soidesZ, na.rm = TRUE)
+range(data_mh$MVSZ, na.rm = TRUE)
+range(data_mh$NFRZ, na.rm = TRUE)
+range(data_mh$MEZ, na.rm = TRUE)
+range(data_mh$LoEZ, na.rm = TRUE)
+range(data_mh$RUMZ, na.rm = TRUE)
+range(data_mh$TIVZ, na.rm = TRUE)
+range(data_mh$PHQ9_meanZ, na.rm = TRUE)
+range(data_mh$GAD_meanZ, na.rm = TRUE)
+range(data_mh$lonely_meanZ, na.rm = TRUE)
+range(data_mh$SWL_meanZ, na.rm = TRUE)
+
+#aggregated variables
+range(data_mh$PHQ9Z, na.rm = TRUE)
+range(data_mh$GADZ, na.rm = TRUE)
+range(data_mh$lonelyZ, na.rm = TRUE)
+range(data_mh$SWLZ, na.rm = TRUE)
+```
+
+## Independent sample t-tests
+
+### Age
+
+```{r}
+data_age <- data_age %>%
+  filter(ageZ >= -3.30 & ageZ <= 3.30)
+
+hist(lm(age ~ as.factor(incel), data = data_age)$residuals)
+qqPlot(lm(age ~ as.factor(incel), data = data_age)$residuals)
+
+favstats(~ age, incel, data = data_age)
+
+(leveneTest(age ~ as.factor(incel), data = data_age))$`Pr(>F)` #homogeneity not met
+aget <- t.test(age ~ incel, data = data_age, var.equal = FALSE) 
+aget
+cohens_d(age ~ incel, data = data_age)
+
+set.seed(1993)
+age.boot <- Boot(lm(age ~ incel, data = data_age), f = coef, R = 5000)
+confint(age.boot, level = .95, type = "norm")
+```
+
+### Tendencies for interpersonal victimhood
+
+#### Need for recognition
+
+```{r}
+dataNFR <- data_mh %>%
+  filter(NFRZ >= -3.30 & NFRZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30) 
+
+favstats(~ TIV_NFR, incel, data = dataNFR)
+
+hist(lm(TIV_NFR ~ as.factor(incel), data = dataNFR)$residuals)
+qqPlot(lm(TIV_NFR ~ as.factor(incel), data = dataNFR)$residuals) #looking alright
+
+(leveneTest(TIV_NFR ~ as.factor(incel), data = dataNFR))$`Pr(>F)` #homogeneity met
+NFRt <- t.test(TIV_NFR ~ incel, data = dataNFR, var.equal = TRUE) #normal theory 95%CIs[.16, .54]
+NFRt
+p.adjust(NFRt$p.value, method = "bonferroni" , 
+         n = 5)
+cohens_d(TIV_NFR ~ incel, data = dataNFR)
+
+set.seed(1993)
+NFR.boot <- Boot(lm(TIV_NFR ~ incel, data = dataNFR), f = coef, R = 5000)
+confint(NFR.boot, level = .95, type = "norm")
+
+summary(lm(TIV_NFR ~ incel, data = dataNFR))
+lm.beta(lm(TIV_NFR ~ incel, data = dataNFR))
+supernova(lm(TIV_NFR ~ incel, data = dataNFR))
+
+summary(lm(TIV_NFR ~ age, data = dataNFR))
+lm.beta(lm(TIV_NFR ~ age, data = dataNFR))
+
+summary(lm(TIV_NFR ~ age + incel, data = dataNFR))
+lm.beta(lm(TIV_NFR ~ age + incel, data = dataNFR))
+supernova(lm(TIV_NFR ~ age + incel, data = dataNFR))
+```
+
+#### Moral elitism
+
+```{r}
+dataME <- data_mh %>%
+  filter(MEZ >= -3.30 & MEZ <= 3.30)
+
+favstats(~ TIV_ME, incel, data = dataME)
+
+hist(lm(TIV_ME ~ as.factor(incel), data = dataME)$residuals)
+qqPlot(lm(TIV_ME ~ as.factor(incel), data = dataME)$residuals) #looking good
+
+(leveneTest(TIV_ME ~ as.factor(incel), data = dataME))$`Pr(>F)` #homogeneity NOT met
+MEt <- t.test(TIV_ME ~ incel, data = dataME, var.equal = FALSE) #normal theory 95%CIs[.29, .61]
+MEt
+p.adjust(MEt$p.value, method = "bonferroni" , 
+         n = 5)
+cohens_d(TIV_ME ~ incel, data = dataME)
+
+set.seed(1993)
+ME.boot <- Boot(lm(TIV_ME ~ incel, data = dataME), f = coef, R = 5000)
+confint(ME.boot, level = .95, type = "norm")
+```
+
+#### Lack of empathy
+
+```{r}
+dataLoE <- data_mh %>%
+  filter(LoEZ >= -3.30 & LoEZ <= 3.30)
+
+favstats(~ TIV_LoE, incel, data = dataLoE)
+
+hist(lm(TIV_LoE ~ as.factor(incel), data = dataLoE)$residuals)
+qqPlot(lm(TIV_LoE ~ as.factor(incel), data = dataLoE)$residuals) #looks alright
+
+(leveneTest(TIV_LoE ~ as.factor(incel), data = dataLoE))$`Pr(>F)` #homogeneity NOT met
+LoEt <- t.test(TIV_LoE ~ incel, data = data_mh, var.equal = FALSE) #normal theory 95%CIs[.10, .50]
+LoEt
+p.adjust(LoEt$p.value, method = "bonferroni" , 
+         n = 5)
+cohens_d(TIV_LoE ~ incel, data = dataLoE)
+
+set.seed(1993)
+LoE.boot <- Boot(lm(TIV_LoE ~ incel, data = dataLoE), f = coef, R = 5000)
+confint(LoE.boot, level = .95, type = "norm")
+```
+
+#### Rumination
+
+```{r}
+dataRUM <- data_mh %>%
+  filter(RUMZ >= -3.30 & RUMZ <= 3.30)
+
+favstats(~ TIV_RUM, incel, data = dataRUM)
+
+hist(lm(TIV_RUM ~ as.factor(incel), data = dataRUM)$residuals)
+qqPlot(lm(TIV_RUM ~ as.factor(incel), data = dataRUM)$residuals) #not pretty
+
+(leveneTest(TIV_RUM ~ as.factor(incel), data = dataRUM))$`Pr(>F)` #homogeneity met
+RUMt <- t.test(TIV_RUM ~ incel, data = dataRUM, var.equal = TRUE) #normal theory 95%CIs[.47, .98]
+RUMt
+p.adjust(RUMt$p.value, method = "bonferroni" , 
+         n = 5)
+cohens_d(TIV_RUM ~ incel, data = dataRUM)
+
+set.seed(1993)
+RUM.boot <- Boot(lm(TIV_RUM ~ incel, data = dataRUM), f = coef, R = 5000)
+confint(RUM.boot, level = .95, type = "norm")
+```
+
+#### Overall TIV
+
+```{r}
+dataTIV <- data_mh %>%
+  filter(TIVZ >= -3.30 & TIVZ <= 3.30)
+
+favstats(~ TIV, incel, data = dataTIV)
+
+hist(lm(TIV ~ as.factor(incel), data = dataTIV)$residuals)
+qqPlot(lm(TIV ~ as.factor(incel), data = dataTIV)$residuals) #good
+
+(leveneTest(TIV ~ as.factor(incel), data = dataTIV))$`Pr(>F)` #homogeneity NOT met
+TIVt <- t.test(TIV ~ incel, data = dataTIV, var.equal = FALSE) #normal theory 
+TIVt
+p.adjust(TIVt$p.value, method = "bonferroni" , 
+         n = 5)
+cohens_d(TIV ~ incel, data = dataTIV)
+
+set.seed(1993)
+TIV.boot <- Boot(lm(TIV ~ incel, data = dataTIV), f = coef, R = 5000)
+confint(TIV.boot, level = .95, type = "norm")
+```
+
+### Mating measures
+
+#### Sociosexual desires
+
+```{r}
+datasoides <- data_mh %>%
+  filter(soidesZ >= -3.30 & soidesZ <= 3.30)
+
+favstats(~ soides, incel, data = datasoides)
+
+hist(lm(soides ~ as.factor(incel), data = datasoides)$residuals)
+qqPlot(lm(soides ~ as.factor(incel), data = datasoides)$residuals)
+
+leveneTest(soides ~ as.factor(incel), data = datasoides)$`Pr(>F)` #homogeneity NOT met
+t.test(soides ~ incel, data = datasoides, var.equal = FALSE) #normal theory 95%CIs[.12, .92]
+cohens_d(soides ~ incel, data = datasoides)
+
+set.seed(1993)
+soides.boot <- Boot(lm(soides ~ as.factor(incel), data = datasoides), f=coef, R = 5000)
+confint(soides.boot, level = .95, type = "norm") 
+summary(soides.boot)
+```
+
+#### Perceived mate value
+
+```{r}
+dataMVS <- data_mh %>%
+  filter(MVSZ >= -3.30 & MVSZ <= 3.30)
+
+favstats(~ MVS, incel, data = dataMVS)
+
+hist(lm(MVS ~ as.factor(incel), data = dataMVS)$residuals)
+qqPlot(lm(MVS ~ as.factor(incel), data = dataMVS)$residuals) #alright
+
+leveneTest(MVS ~ as.factor(incel), data = dataMVS)$`Pr(>F)` #homogeneity NOT met
+t.test(MVS ~ incel, data = dataMVS, var.equal = FALSE) #normal theory 95%CIs[-1.42, -.86]
+cohens_d(MVS ~ incel, data = dataMVS)
+
+set.seed(1993)
+MVS.boot <- Boot(lm(MVS ~ as.factor(incel), data = dataMVS), f=coef, R = 5000)
+confint(MVS.boot, level = .95, type = "norm") 
+summary(MVS.boot)
+```
+
+### Wellbeing measures
+
+#### Depression 
+
+```{r}
+datadepress <- data_mh %>%
+  filter(PHQ9_meanZ >= -3.30 & PHQ9_meanZ <= 3.30)
+
+favstats(~ PHQ9_mean, incel, data = datadepress)
+
+hist(lm(PHQ9_mean ~ as.factor(incel), data = datadepress)$residuals)
+qqPlot(lm(PHQ9_mean ~ as.factor(incel), data = datadepress)$residuals) #alright
+
+leveneTest(PHQ9_mean ~ as.factor(incel), data = datadepress)$`Pr(>F)` #homogeneity met
+PHQ9t <- t.test(PHQ9_mean ~ incel, data = datadepress, var.equal = TRUE) #normal theory 95%CIs[.42, .75]
+PHQ9t
+p.adjust(PHQ9t$p.value, method = "bonferroni" , 
+         n = 4)
+cohens_d(PHQ9_mean ~ incel, data = datadepress)
+
+set.seed(1993)
+PHQ9_mean.boot <- Boot(lm(PHQ9_mean ~ as.factor(incel), data = datadepress), f = coef, R = 5000)
+confint(PHQ9_mean.boot, level = .95, type = "norm")
+```
+
+#### Anxiety
+
+```{r}
+dataGAD <- data_mh %>%
+  filter(GAD_meanZ >= -3.30 & GAD_meanZ <= 3.30)
+
+favstats(~ GAD_mean, incel, data = dataGAD)
+
+hist(lm(GAD_mean ~ as.factor(incel), data = dataGAD)$residuals)
+qqPlot(lm(GAD_mean ~ as.factor(incel), data = dataGAD)$residuals) #not the best, not the worst
+
+leveneTest(GAD_mean ~ as.factor(incel), data = dataGAD)$`Pr(>F)` #homogeneity not met
+GADt <- t.test(GAD_mean ~ incel, data = dataGAD, var.equal = FALSE) #normal theory 95%CIs[.32, .72]
+GADt
+p.adjust(GADt$p.value, method = "bonferroni" , 
+         n = 4)
+cohens_d(GAD_mean ~ incel, data = dataGAD)
+
+set.seed(1993)
+GAD_mean.boot <- Boot(lm(GAD_mean ~ as.factor(incel), data = dataGAD), f = coef, R = 5000)
+confint(GAD_mean.boot, level = .95, type = "norm") 
+```
+
+#### Loneliness
+
+```{r}
+datalonely <- 
+  data_mh %>%
+  filter(lonely_meanZ >= -3.30 & lonely_meanZ <= 3.30)
+
+favstats(~ lonely_mean, incel, data = datalonely)
+
+hist(lm(lonely_mean ~ as.factor(incel), data = datalonely)$residuals)
+qqPlot(lm(lonely_mean ~ as.factor(incel), data = datalonely)$residuals) #BIG NOPE
+
+leveneTest(lonely_mean ~ as.factor(incel), data = datalonely)$`Pr(>F)` #homogeneity not met
+lonelyt <- t.test(lonely_mean ~ incel, data = datalonely, var.equal = FALSE) #normal theory 95%CIs[.40, .62]
+lonelyt
+p.adjust(lonelyt$p.value, method = "bonferroni" , 
+         n = 4)
+cohens_d(lonely_mean ~ incel, data = datalonely)
+
+set.seed(1993)
+lonely_mean.boot <- Boot(lm(lonely_mean ~ as.factor(incel), data = datalonely), f=coef, R = 5000)
+confint(lonely_mean.boot, level = .95, type = "norm") 
+```
+
+#### Satisfaction with life
+
+```{r}
+dataSWL <- data_mh %>%
+  filter(SWL_meanZ >= -3.30 & SWL_meanZ <= 3.30)
+
+favstats(~ SWL_mean, incel, data = dataSWL)
+
+hist(lm(SWL_mean ~ as.factor(incel), data = dataSWL)$residuals)
+qqPlot(lm(SWL_mean ~ as.factor(incel), data = dataSWL)$residuals)
+
+leveneTest(SWL_mean ~ as.factor(incel), data = dataSWL)$`Pr(>F)` #homogeneity met
+SWLt <- t.test(SWL_mean ~ incel, data = dataSWL, var.equal = TRUE) #normal theory 95%CIs[-1.60, -.96]
+SWLt
+p.adjust(SWLt$p.value, method = "bonferroni" , 
+         n = 4)
+cohens_d(SWL_mean ~ incel, data = dataSWL)
+
+set.seed(1993)
+SWL_mean.boot <- Boot(lm(SWL_mean ~ as.factor(incel), data = dataSWL), f=coef, R = 5000)
+confint(SWL_mean.boot, level = .95, type = "norm") 
+```
+
+## Chi-squares comparing proportion of incel vs non-incel men categorised as depressed and anxious
+
+The PHQ9 divides people into 5 depression categories based on the following scores:
+
+  - 0-4: not depressed
+  - 5-9: mildly depressed
+  - 10-14: moderately depressed
+  - 15-19: moderately severely depressed
+  - 20+ : severely depressed
+  
+Similarly the GAD7 has the following cutoffs for different anxiety categories:
+
+  - 0-4: no anxiety
+  - 5-9: mild anxiety
+  - 10-14: moderate anxiety
+  - 15+ : severe anxiety
+
+As such, to run chi-square tests of independence, we created categorical versions for depression and anxiety using *PHQ9_all* and *GAD_all*
+
+```{r}
+data_mh <- data_mh %>%
+  mutate(PHQ9_cat = ifelse(PHQ9_all < 5, 0,
+                           ifelse(PHQ9_all < 10, 1,
+                                  ifelse(PHQ9_all < 15, 2,
+                                         ifelse(PHQ9_all < 20, 3, 4)))),
+         GAD_cat = ifelse(GAD_all < 5, 0, 
+                           ifelse(GAD_all < 10, 1, 
+                                  ifelse(GAD_all < 15, 2, 3))))
+
+#creating contingency table
+tblPHQ9 <- xtabs(~ incel + PHQ9_cat, data = data_mh)
+tblGAD <- xtabs( ~ incel + GAD_cat, data = data_mh)
+
+rowPHQ9 <- prop.table(tblPHQ9, 1)
+rowGAD <- prop.table(tblGAD, 1)
+
+#running chi-squares
+chisq.test(tblPHQ9) # X^2(4) = 40.21, p < .001 
+chisq.test(tblGAD) # X^2(3) = 18.51, p < .001
+
+#post hoc and corrections
+padjPHQ9 <- .05/(nrow(tblPHQ9)*ncol(tblPHQ9)) #new alpha value is .005
+critPHQ9 <- qnorm(padjPHQ9/2) #new critical value is |2.81|
+
+padjGAD <- .05/(nrow(tblGAD)*ncol(tblGAD)) #new alpha value is .006
+critGAD <- qnorm(padjGAD/2) #new critical value is |2.73|
+
+#examine expected values and standardised residuals
+PHQ9exp <- chisq.test(tblPHQ9)$expected
+GADexp <- chisq.test(tblGAD)$expected
+PHQ9res <- chisq.test(tblPHQ9)$stdres
+GADres <- chisq.test(tblGAD)$stdres
+```
+
+The adjusted residual for severe depression is no longer significant when applying a Bonferroni correction, however, there is still a difference in the proportions for moderately severe and no depression
+
+# Interaction between incel self-identification, and SOI desire, and TIV on mental health outcomes
+
+## Correlations among SOI desire, TIV, and mental health outcomes
+
+```{r}
+rcorr(as.matrix(data_mh[,c("PHQ9_mean","GAD_mean", "lonely_mean", "SWL_mean", "soides", "TIV")], type="pearson"))
+select(data_mh, c(PHQ9_mean, GAD_mean, lonely_mean, SWL_mean, soides, TIV)) %>%
+  apa.cor.table(data_mh, show.conf.interval = TRUE, filename = "Table_4_incel_mental_health.doc", table.number = 3)
+```
+
+## Depression
+
+```{r}
+depress <- data_mh %>%
+  filter(soidesZ >= -3.30 & soidesZ <= 3.30 &
+           TIVZ >= -3.30 & TIVZ <= 3.30 &
+           PHQ9_meanZ >= -3.30 & PHQ9_meanZ <= 3.30 &
+           age > 18) #remove univariate outliers and NA values for age (6 total) to be able to get Mahalanobis distances
+
+depressmahal <- lm(age ~ incel + soides + TIV + PHQ9_mean, data = depress)
+
+depress$res <- depress$age - predict(depressmahal)
+depress$mahal <- MoE_mahala(depressmahal, depress$res)
+
+#critical value for chi-square num df = 4, at p = .001 is 18.477
+sum(depress$mahal > 18.47) #17 multivariate outliers
+
+depress.mod <- lm(PHQ9_mean ~ 1 + incel + soides + TIV + incel*soides + incel*TIV, data = depress)
+summary(depress.mod)
+supernova(depress.mod)$tbl$PRE[5] #gives change in R2 as a result of the incel-soides interaction
+supernova(depress.mod)$tbl$PRE[6] #gives change in R2 as a result of the incel-TIV interaction
+lm.beta(depress.mod)
+```
+
+## Anxiety
+
+```{r}
+anx <- data_mh %>%
+  filter(soidesZ >= -3.30 & soidesZ <= 3.30 &
+           TIVZ >= -3.30 & TIVZ <= 3.30 &
+           GAD_meanZ >= -3.30 & GAD_meanZ <= 3.30 &
+           age > 18) 
+
+anxmahal <- lm(age ~ incel + soides + TIV + GAD_mean, data = anx)
+
+anx$res <- anx$age - predict(anxmahal)
+anx$mahal <- MoE_mahala(anxmahal, anx$res)
+
+#critical value for chi-square num df = 4, at p = .001 is 18.47
+sum(anx$mahal > 18.47) # 14 multivariate outliers
+
+anx.mod <- lm(GAD_mean ~ 1 + incel + soides + TIV + incel*soides + incel*TIV, data = anx)
+summary(anx.mod)
+supernova(anx.mod)$tbl$PRE[5] #gives change in R2 as a result of the incel-soides interaction
+supernova(anx.mod)$tbl$PRE[6] #gives change in R2 as a result of the incel-TIV interaction
+lm.beta(anx.mod)
+```
+
+## Loneliness
+
+```{r}
+lone <- data_mh %>%
+  filter(soidesZ >= -3.30 & soidesZ <= 3.30 &
+           TIVZ >= -3.30 & TIVZ <= 3.30 &
+           lonely_meanZ >= -3.30 & lonely_meanZ <= 3.30 &
+           age > 18)
+
+lonemahal <- lm(age ~ incel + soides + TIV + lonely_mean, data = lone)
+
+lone$res <- lone$age - predict(lonemahal)
+lone$mahal <- MoE_mahala(lonemahal, lone$res)
+
+#critical value for chi-square num df = 4, at p = .001 is 18.47
+sum(lone$mahal > 18.47) #15 multivariate outliers
+
+lone.mod <- lm(lonely_mean ~ 1 + incel + soides + TIV + incel*soides + incel*TIV, data = lone)
+summary(lone.mod)
+supernova(lone.mod)$tbl$PRE[5] #gives change in R2 as a result of the incel-soides interaction
+supernova(lone.mod)$tbl$PRE[6] #gives change in R2 as a result of the incel-TIV interaction
+lm.beta(lone.mod)
+
+set.seed(1993)
+lone.mod.boot <- Boot(lone.mod, f=coef, R = 5000)
+confint(lone.mod.boot, level = .95, type = "norm")
+
+#Probing the incel*TIV interaction
+#order matters in pickapoint (if interaction term is incel*TIV, then the function expects incel as the iv and TIV as the moderator, and returns an error if the lm does not have this order. Thus, I just moved the terms around from lone.mod and requested the effects of TIV on loneliness for non-incels and incels. Both are significant, however, the effect is stronger for non-incels.
+
+pickapoint(lm(lonely_mean ~ 1 + soides + TIV + incel + soides*incel + TIV*incel, data = lone),
+           dv ='lonely_mean', iv = 'TIV', mod = 'incel')
+
+interact_plot(lm(lonely_mean ~ 1 + soides + TIV + incel + soides*incel + TIV*incel, data = lone),
+              pred = TIV, modx = incel) + 
+  theme_classic(base_size = 8) +
+  ylab("Mean loneliness score") +
+  xlab("Overall tendency for interpersonal victimhood")
+```
+
+## Satisfaction with life
+
+```{r}
+SWL <- data_mh %>%
+  filter(soidesZ >= -3.30 & soidesZ <= 3.30 &
+           TIVZ >= -3.30 & TIVZ <= 3.30 &
+           SWL_meanZ >= -3.30 & SWL_meanZ <= 3.30 &
+           age > 18)
+
+SWLmahal <- lm(age ~ incel + soides + TIV + SWL_mean, data = SWL)
+
+SWL$res <- SWL$age - predict(SWLmahal)
+SWL$mahal <- MoE_mahala(SWLmahal, SWL$res)
+
+#critical value for chi-square num df = 4, at p = .001 is 18.47
+sum(SWL$mahal > 18.47) #17 multivariate outliers
+
+SWL.mod <- lm(SWL_mean ~ 1 + incel + soides + TIV + incel*soides + incel*TIV, data = SWL)
+summary(SWL.mod)
+supernova(SWL.mod)$tbl$PRE[5] #gives change in R2 as a result of the incel-soides interaction
+supernova(SWL.mod)$tbl$PRE[6] #gives change in R2 as a result of the incel-TIV interaction
+lm.beta(SWL.mod)
+```
+
+# Exploratory analyses
+
+## Other incel vs non-incel comparisons
+
+Beyond our main hypotheses, we ran exploratory analyses comparing the proportion of incel and non-incel men in variables such as living with self-reported mental and physical conditions, education, employment status, living arrangements, political affiliation, and relationship seeking.
+
+```{r}
+data_exp <- data %>%
+  dplyr::select(., (c(incel, sex, employ, edu, politic, `M Health`, `P Health`, living, relation, seekrelation))) %>%
+  rename(mental = `M Health`, physical = `P Health`) %>%
+  filter(sex == 0 & incel == 0 | sex == 0 & incel == 1)
+
+data_exp <- data_exp %>%
+  group_by(incel) %>%
+  mutate(politicZ = scale(politic))%>%
+  ungroup()
+
+range(data_exp$politicZ, na.rm = TRUE) #no outliers for the politic variable
+```
+
+For education, original categories (see report) were collapsed into 0 = Secondary education or less, 1 = Undergraduate, 2 = Postraduate so we would have enough expected cases per cell to run a chi-square. Similarly, for employment stauts, original categories were collapsed into 0 = non-NEET and 1 = NEET. For living arrangements, old categories were collapsed into 0 = living alone, 1 = cohabiting (with a housemate or romantic partner), and 2 = living with carers (parents, family, or other)
+
+### Mental and physical conditions
+
+```{r}
+#Self-reported mental conditions
+
+tblmental <- xtabs(~ incel + mental, data = data_exp)
+rowmental <- prop.table(tblmental, 1)
+chisq.test(tblmental)
+padjmental <- .05/(nrow(tblmental)*ncol(tblmental)) #.0083
+critmental <- qnorm(padjmental/2) #|2.64|
+mentalexp <- chisq.test(tblmental)$expected
+mentalres <- chisq.test(tblmental)$stdres
+
+#Self-reported physical conditions
+data_exp <- data_exp %>%
+  mutate(physical = ifelse(physical == 3, 0,
+                           ifelse(physical == 2, 1,
+                                  ifelse(physical == 1, 2, 99)))) #so physical is on the same scale as mental
+tblphysical <- xtabs(~ incel + physical, data = data_exp)
+rowphysical <- prop.table(tblphysical, 1)
+chisq.test(tblphysical)
+padjphysical <- .05/(nrow(tblphysical)*ncol(tblphysical)) #.0083
+critphysical <- qnorm(padjphysical/2) #|2.64|
+physicalexp <- chisq.test(tblphysical)$expected
+physicalres <- chisq.test(tblphysical)$stdres
+```
+
+### Education
+
+```{r}
+data_exp <- data_exp %>%
+  mutate(edu_cat = ifelse(edu < 3 | edu == 6, 0,
+                          ifelse(edu == 3, 1, 
+                                 ifelse(edu == 4 | edu == 5, 2, 99))))
+
+tbledu <- xtabs(~ incel + edu_cat, data = data_exp)
+rowedu <- prop.table(tbledu, 1)
+chisq.test(tbledu) 
+
+padjedu <-.05/(nrow(tbledu)*ncol(tbledu)) #new alpha value = .0083
+critedu <- qnorm(padjedu/2) #new critical value of |2.64|
+
+eduexp <- chisq.test(tbledu)$expected
+edures <- chisq.test(tbledu)$stdres
+```
+
+### Employment
+
+```{r}
+data_exp <- data_exp %>%
+  mutate(employ = ifelse(employ < 5 | employ == 6, 0, 1))
+
+tblemploy <- xtabs(~ incel + employ, data = data_exp)
+rowemploy <- prop.table(tblemploy, 1)
+chisq.test(tblemploy)
+
+padjemploy <-.05/(nrow(tblemploy)*ncol(tblemploy)) #new alpha value = .012
+critemploy <- qnorm(padjemploy/2) #new critical value of |2.50|
+
+employexp <- chisq.test(tblemploy)$expected
+employres <- chisq.test(tblemploy)$stdres
+```
+
+### Living arrangements
+
+```{r}
+data_liv <- data_exp %>%
+  mutate(living = ifelse(living == 1, 0,
+                         ifelse(living == 2 | living == 3, 1,
+                                ifelse(living == 4, 2, 99)))) %>%
+  filter(living < 99)
+
+tblliving <- xtabs(~ incel + living, data = data_liv)
+rowliving <- prop.table(tblliving, 1)
+chisq.test(tblliving)
+
+padjliving <-.05/(nrow(tblliving)*ncol(tblliving)) #new alpha value = .008
+critliving <- qnorm(padjliving/2) #new critical value of |2.64|
+
+livingexp <- chisq.test(tblliving)$expected
+livingres <- chisq.test(tblliving)$stdres
+```
+
+### Political orientation
+
+```{r}
+data_pol <- data_exp %>%
+  filter(politic < 6) #removing apolitcal ppl
+
+favstats(~ politic, incel, data = data_pol)
+
+leveneTest(politic ~ as.factor(incel), data = data_pol)$`Pr(>F)` #homogeneity met
+t.test(politic ~ incel, data = data_pol, var.equal = TRUE) #normal theory 95%CIs[-1.60, -.96]
+cohens_d(politic ~ incel, data = data_pol)
+
+set.seed(1993)
+politic.boot <- Boot(lm(politic ~ as.factor(incel), data = data_pol), f=coef, R = 5000)
+confint(politic.boot, level = .95, type = "norm") 
+```
+
+### Relationship seeking
+
+```{r}
+data_love <- data_exp %>%
+  filter(relation == 1 & seekrelation < 6) %>% #all the single gentlemen, all the single gentlmen, oh-oh-oh, oh-oh-oh-oh
+  mutate(seekrelation = 6 - seekrelation) #recoding seekrelation so > scores equal > desire to seek relationship
+
+favstats(~ seekrelation, incel, data = data_love)
+
+leveneTest(seekrelation ~ as.factor(incel), data = data_love)$`Pr(>F)` #homogeneity met
+t.test(seekrelation ~ incel, data = data_love, var.equal = TRUE) #normal theory 95%CIs[-1.60, -.96]
+cohens_d(seekrelation ~ incel, data = data_love)
+
+set.seed(1993)
+seekrelation.boot <- Boot(lm(seekrelation ~ as.factor(incel), data = data_love), f=coef, R = 5000)
+confint(seekrelation.boot, level = .95, type = "norm") 
+```
+
+## Basic data demographics
+
+```{r}
+data_mh <- data_mh %>%
+  mutate(
+    ethnicity = case_when(
+      ethnic_1 == 1 & is.na(ethnic_2) & is.na(ethnic_3) & is.na(ethnic_4) & is.na(ethnic_5) & is.na(ethnic_6) & is.na(ethnic_7) &
+        is.na(ethnic_8) ~ 1,
+      ethnic_2 == 1 & is.na(ethnic_1) & is.na(ethnic_3) & is.na(ethnic_4) & is.na(ethnic_5) & is.na(ethnic_6) & is.na(ethnic_7) &
+        is.na(ethnic_8) ~ 2,
+       ethnic_3 == 1 & is.na(ethnic_1) & is.na(ethnic_2) & is.na(ethnic_4) & is.na(ethnic_5) & is.na(ethnic_6) & is.na(ethnic_7) &
+        is.na(ethnic_8) ~ 3,
+      ethnic_4 == 1 & is.na(ethnic_1) & is.na(ethnic_2) & is.na(ethnic_3) & is.na(ethnic_5) & is.na(ethnic_6) & is.na(ethnic_7) &
+        is.na(ethnic_8) ~ 4,
+      ethnic_5 == 1 & is.na(ethnic_1) & is.na(ethnic_2) & is.na(ethnic_3) & is.na(ethnic_4) & is.na(ethnic_6) & is.na(ethnic_7) &
+        is.na(ethnic_8) ~ 5,
+      ethnic_6 == 1 & is.na(ethnic_1) & is.na(ethnic_2) & is.na(ethnic_3) & is.na(ethnic_4) & is.na(ethnic_5) & is.na(ethnic_7) &
+        is.na(ethnic_8) ~ 6,
+      ethnic_7 == 1 & is.na(ethnic_1) & is.na(ethnic_2) & is.na(ethnic_3) & is.na(ethnic_4) & is.na(ethnic_5) & is.na(ethnic_6) &
+        is.na(ethnic_8) ~ 7,
+      ethnic_8 == 1 & is.na(ethnic_1) & is.na(ethnic_2) & is.na(ethnic_3) & is.na(ethnic_4) & is.na(ethnic_5) & is.na(ethnic_6) &
+        is.na(ethnic_7) ~ 8,
+      TRUE ~ 6))
+
+data_mh$ethnic_cat <- factor(data_mh$ethnicity, levels = c('1', '2', '3', '4', '5', '6', '7', '8'),
+                              labels = c('White','Black', 'South/Southeast Asian', 'Eastern Asian', 'Latino', 'Mixed', 'Other', 'Middle Eastern'))
+data_mh$country_cat <- factor(data_mh$country, levels = c('0', '1', '2', '3'),
+                          labels = c('US', 'UK', 'Other', 'Ireland'))
+
+summary(data_mh$ethnic_cat)/nrow(data_mh)*100 #breakdown by ethnicity
+summary(data_mh$country_cat)/nrow(data_mh)*100 #breakdown by country
+```
+
+## Which incels fair better?
+
+  - Do watching porn, using forums, believing in the blackpill or that one will be an incel for life affect incel mental health?
+  - Do incels who participate in forums perceive their wellbeing to have improved? (one-sample t w/forumWellbeing)
+  
+  - Have incels' opinions of women changed as a result of forum use? (one-sample t w/ femopinion) 
+  - Are incels who participate in forums or watch more porn more feminist (or likely to identify as one)?
+  
+```{r}
+data_incels <- data_mh %>%
+  filter(incel == 1) %>%
+  mutate(incel4life = 6 - incel4life, blackpill = 6 - blackpill, forumWellbeing = 6 - forumWellbeing, #recoding so > values = 
+         femopinion = 6 - femopinion, feminist = 6 - feminist,                                        # > scores on these variables
+         pornZ = scale(porn), incel4lifeZ = scale(incel4life), blackZ = scale(blackpill), forumWellbeingZ = scale(forumWellbeing), 
+         femopinionZ = scale(femopinion), feministZ = scale(feminist))
+
+#checking for outliers
+range(data_incels$pornZ, na.rm = TRUE) #yup, one outlier when looking at the sum of cases that are > 3.30
+range(data_incels$incel4lifeZ, na.rm = TRUE)
+range(data_incels$blackZ, na.rm = TRUE)
+range(data_incels$forumWellbeingZ, na.rm = TRUE)
+range(data_incels$femopinionZ, na.rm = TRUE)
+range(data_incels$feministZ, na.rm = TRUE)
+
+incel_PHQ9.lm <- data_incels %>%
+  filter(pornZ >= -3.30 & pornZ <= 3.30 ) %>%
+  lm(PHQ9_mean ~ 1 + porn + forums + blackpill + incel4life, data = .)
+summary(incel_PHQ9.lm)
+lm.beta(incel_PHQ9.lm)
+
+incel_GAD.lm <- data_incels %>%
+  filter(pornZ >= -3.30 & pornZ <= 3.30 ) %>%
+  lm(GAD_mean ~ 1 + porn + forums + blackpill + incel4life, data = .)
+summary(incel_GAD.lm)
+lm.beta(incel_GAD.lm)
+
+incel_lonely.lm <- data_incels %>%
+  filter(pornZ >= -3.30 & pornZ <= 3.30 ) %>%
+  lm(lonely_mean ~ 1 + porn + forums + blackpill + incel4life, data = .)
+summary(incel_lonely.lm)
+lm.beta(incel_lonely.lm)
+
+incel_SWL.lm <- data_incels %>%
+  filter(pornZ >= -3.30 & pornZ <= 3.30 ) %>%
+  lm(SWL_mean ~ 1 + porn + forums + blackpill + incel4life, data = .)
+summary(incel_SWL.lm)
+lm.beta(incel_SWL.lm)
+
+t.test(data_incels$forumWellbeing, mu = 3)
+```
