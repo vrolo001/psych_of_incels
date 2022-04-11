@@ -120,276 +120,270 @@ age.boot <- Boot(lm(age ~ incel, data = data_age), f = coef, R = 5000)
 confint(age.boot, level = .95, type = "norm")
 ```
 
-Incels were significantly younger (*M* = 27.94, *SD* = 7.26, *n* = 146) than non-incels (*M* = 32.98, *SD* = 9.66, *n* = 371), *t*(351.08) = -6.44, *p* < .001, *d* = .59, *95%BootCI*[-6.57, -3.50]. Thus, instead of computing independent samples t-tests to compare the two groups on our outcome variables (i.e., TIV, mental health, MVS, and SOI desire), we computed a series of multiple regressions using age as a control variable.
+Incels were significantly younger (*M* = 27.94, *SD* = 7.26, *n* = 146) than non-incels (*M* = 32.98, *SD* = 9.66, *n* = 371), *t*(351.08) = -6.44, *p* < .001, *d* = .59, *95%BootCI*[-6.57, -3.50]. Thus, instead of computing independent samples t-tests to compare the two groups on our outcome variables (i.e., TIV, mental health, MVS, and SOI desire), we computed a series of multiple regressions using age as a control variable. These are currently on the main branch
 
-## Tendencies for interpersonal victimhood
+### Tendencies for interpersonal victimhood
 
-### Need for recognition
+#### Need for recognition
 
 ```{r}
 dataNFR <- data_mh %>%
   filter(NFRZ >= -3.30 & NFRZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30) 
-
+  
 favstats(~ TIV_NFR, incel, data = dataNFR)
 
-summary(lm(TIV_NFR ~ age + incel, data = dataNFR))
-lm.beta(lm(TIV_NFR ~ age + incel, data = dataNFR)) #gives standardised regression coefficients
-supernova(lm(TIV_NFR ~ age + incel, data = dataNFR)) #PRE shows the change in R^2 for every variable in the model
-p.adjust(summary(lm(TIV_NFR ~ age + incel, data = dataNFR))$coefficients[3, 4], method = "bonferroni" , 
+hist(lm(TIV_NFR ~ as.factor(incel), data = dataNFR)$residuals)
+qqPlot(lm(TIV_NFR ~ as.factor(incel), data = dataNFR)$residuals) #looking alright
+
+(leveneTest(TIV_NFR ~ as.factor(incel), data = dataNFR))$`Pr(>F)` #homogeneity met
+NFRt <- t.test(TIV_NFR ~ incel, data = dataNFR, var.equal = TRUE) #normal theory 95%CIs[.16, .54]
+NFRt
+p.adjust(NFRt$p.value, method = "bonferroni" , 
          n = 5)
+cohens_d(TIV_NFR ~ incel, data = dataNFR)
 
 set.seed(1993)
-NFR.boot <- Boot(lm(TIV_NFR ~ age + incel, data = dataNFR), f = coef, R = 5000)
+NFR.boot <- Boot(lm(TIV_NFR ~ incel, data = dataNFR), f = coef, R = 5000)
 confint(NFR.boot, level = .95, type = "norm")
 
-pcor.test(dataNFR$TIV_NFR,dataNFR$incel,dataNFR$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(TIV_NFR ~ age + incel, data = dataNFR))$df[2], 
-             f2 = summary(lm(TIV_NFR ~ age + incel, data = dataNFR))$adj.r.squared/(1 - summary(lm(TIV_NFR ~ age + incel, data = dataNFR))$adj.r.squared), sig.level = .05, power = NULL))$power
-
+#Exploring how age affects the model
+summary(lm(TIV_NFR ~ incel, data = dataNFR))
+lm.beta(lm(TIV_NFR ~ incel, data = dataNFR))
+supernova(lm(TIV_NFR ~ incel, data = dataNFR))
+summary(lm(TIV_NFR ~ age, data = dataNFR))
+lm.beta(lm(TIV_NFR ~ age, data = dataNFR))
+summary(lm(TIV_NFR ~ age + incel, data = dataNFR))
+lm.beta(lm(TIV_NFR ~ age + incel, data = dataNFR))
+supernova(lm(TIV_NFR ~ age + incel, data = dataNFR))
 ```
 
-
-Overall, controlling for age, incels (*M* = 3.36, *SD* = 1.02, *n* = 125) scored significantly higher on need for recognition than did non incels (*M* = 3.01, *SD* = .91, *n* = 308), *b* = .25, *95%BootCI*[.04, .46], $\beta$ = .12, *p* = .01, $f^2$ = .01, $\1 - \beta$ = .99
-
-### Moral elitism
+#### Moral elitism
 
 ```{r}
 dataME <- data_mh %>%
-  filter(MEZ >= -3.30 & MEZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(MEZ >= -3.30 & MEZ <= 3.30)
+  
 favstats(~ TIV_ME, incel, data = dataME)
 
-summary(lm(TIV_ME ~ age + incel, data = dataME))
-lm.beta(lm(TIV_ME ~ age + incel, data = dataME))
-supernova(lm(TIV_ME ~ age + incel, data = dataME))
-p.adjust(summary(lm(TIV_ME ~ age + incel, data = dataME))$coefficients[3, 4], method = "bonferroni" , 
+hist(lm(TIV_ME ~ as.factor(incel), data = dataME)$residuals)
+qqPlot(lm(TIV_ME ~ as.factor(incel), data = dataME)$residuals) #looking good
+
+(leveneTest(TIV_ME ~ as.factor(incel), data = dataME))$`Pr(>F)` #homogeneity NOT met
+MEt <- t.test(TIV_ME ~ incel, data = dataME, var.equal = FALSE) #normal theory 95%CIs[.29, .61]
+MEt
+p.adjust(MEt$p.value, method = "bonferroni" , 
          n = 5)
+cohens_d(TIV_ME ~ incel, data = dataME)
 
 set.seed(1993)
-ME.boot <- Boot(lm(TIV_ME ~ age + incel, data = dataME), f = coef, R = 5000)
+ME.boot <- Boot(lm(TIV_ME ~ incel, data = dataME), f = coef, R = 5000)
 confint(ME.boot, level = .95, type = "norm")
-
-pcor.test(dataME$TIV_ME,dataME$incel,dataME$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(TIV_ME ~ age + incel, data = dataME))$df[2], 
-             f2 = summary(lm(TIV_ME ~ age + incel, data = dataME))$adj.r.squared/(1 - summary(lm(TIV_ME ~ age + incel, data = dataME))$adj.r.squared), sig.level = .05, power = NULL))$power
 ```
 
-### Lack of empathy
+#### Lack of empathy
 
 ```{r}
 dataLoE <- data_mh %>%
-  filter(LoEZ >= -3.30 & LoEZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(LoEZ >= -3.30 & LoEZ <= 3.30)
+  
 favstats(~ TIV_LoE, incel, data = dataLoE)
+hist(lm(TIV_LoE ~ as.factor(incel), data = dataLoE)$residuals)
+qqPlot(lm(TIV_LoE ~ as.factor(incel), data = dataLoE)$residuals) #looks alright
 
-summary(lm(TIV_LoE ~ age + incel, data = dataLoE))
-lm.beta(lm(TIV_LoE~ age + incel, data = dataLoE))
-supernova(lm(TIV_LoE ~ age + incel, data = dataLoE))
-p.adjust(summary(lm(TIV_LoE ~ age + incel, data = dataLoE))$coefficients[3, 4], method = "bonferroni" , 
+(leveneTest(TIV_LoE ~ as.factor(incel), data = dataLoE))$`Pr(>F)` #homogeneity NOT met
+LoEt <- t.test(TIV_LoE ~ incel, data = data_mh, var.equal = FALSE) #normal theory 95%CIs[.10, .50]
+LoEt
+p.adjust(LoEt$p.value, method = "bonferroni" , 
          n = 5)
+cohens_d(TIV_LoE ~ incel, data = dataLoE)
 
 set.seed(1993)
-LoE.boot <- Boot(lm(TIV_LoE ~ age + incel, data = dataLoE), f = coef, R = 5000)
+LoE.boot <- Boot(lm(TIV_LoE ~ incel, data = dataLoE), f = coef, R = 5000)
 confint(LoE.boot, level = .95, type = "norm")
-
-pcor.test(dataLoE$TIV_LoE,dataLoE$incel,dataLoE$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(TIV_LoE ~ age + incel, data = dataLoE))$df[2], 
-             f2 = summary(lm(TIV_LoE ~ age + incel, data = dataLoE))$adj.r.squared/(1 - summary(lm(TIV_LoE ~ age + incel, data = dataLoE))$adj.r.squared), sig.level = .05, power = NULL))$power
 ```
 
-### Rumination
+#### Rumination
 
 ```{r}
 dataRUM <- data_mh %>%
-  filter(RUMZ >= -3.30 & RUMZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(RUMZ >= -3.30 & RUMZ <= 3.30)
+  
 favstats(~ TIV_RUM, incel, data = dataRUM)
 
-summary(lm(TIV_RUM ~ age + incel, data = dataRUM))
-lm.beta(lm(TIV_RUM~ age + incel, data = dataRUM))
-supernova(lm(TIV_RUM ~ age + incel, data = dataRUM))
-p.adjust(summary(lm(TIV_RUM ~ age + incel, data = dataRUM))$coefficients[3, 4], method = "bonferroni" , 
+hist(lm(TIV_RUM ~ as.factor(incel), data = dataRUM)$residuals)
+qqPlot(lm(TIV_RUM ~ as.factor(incel), data = dataRUM)$residuals) #not pretty
+
+(leveneTest(TIV_RUM ~ as.factor(incel), data = dataRUM))$`Pr(>F)` #homogeneity met
+RUMt <- t.test(TIV_RUM ~ incel, data = dataRUM, var.equal = TRUE) #normal theory 95%CIs[.47, .98]
+RUMt
+p.adjust(RUMt$p.value, method = "bonferroni" , 
          n = 5)
+cohens_d(TIV_RUM ~ incel, data = dataRUM)
 
 set.seed(1993)
-RUM.boot <- Boot(lm(TIV_RUM ~ age + incel, data = dataRUM), f = coef, R = 5000)
+RUM.boot <- Boot(lm(TIV_RUM ~ incel, data = dataRUM), f = coef, R = 5000)
 confint(RUM.boot, level = .95, type = "norm")
-
-pcor.test(dataRUM$TIV_RUM,dataRUM$incel,dataRUM$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(TIV_RUM ~ age + incel, data = dataRUM))$df[2], 
-             f2 = summary(lm(TIV_RUM ~ age + incel, data = dataRUM))$adj.r.squared/(1 - summary(lm(TIV_RUM ~ age + incel, data = dataRUM))$adj.r.squared), sig.level = .05, power = NULL))$power
 ```
 
-### Overall TIV
+#### Overall TIV
 
 ```{r}
 dataTIV <- data_mh %>%
-  filter(TIVZ >= -3.30 & TIVZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(TIVZ >= -3.30 & TIVZ <= 3.30)
+  
 favstats(~ TIV, incel, data = dataTIV)
 
-summary(lm(TIV ~ age + incel, data = dataTIV))
-lm.beta(lm(TIV~ age + incel, data = dataTIV))
-supernova(lm(TIV ~ age + incel, data = dataTIV))
-p.adjust(summary(lm(TIV ~ age + incel, data = dataTIV))$coefficients[3, 4], method = "bonferroni" , 
+hist(lm(TIV ~ as.factor(incel), data = dataTIV)$residuals)
+qqPlot(lm(TIV ~ as.factor(incel), data = dataTIV)$residuals) #good
+
+(leveneTest(TIV ~ as.factor(incel), data = dataTIV))$`Pr(>F)` #homogeneity NOT met
+TIVt <- t.test(TIV ~ incel, data = dataTIV, var.equal = FALSE) #normal theory 
+TIVt
+p.adjust(TIVt$p.value, method = "bonferroni" , 
          n = 5)
+cohens_d(TIV ~ incel, data = dataTIV)
 
 set.seed(1993)
-TIV.boot <- Boot(lm(TIV ~ age + incel, data = dataTIV), f = coef, R = 5000)
+TIV.boot <- Boot(lm(TIV ~ incel, data = dataTIV), f = coef, R = 5000)
 confint(TIV.boot, level = .95, type = "norm")
-
-pcor.test(dataTIV$TIV,dataTIV$incel,dataTIV$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(TIV ~ age + incel, data = dataTIV))$df[2], 
-             f2 = summary(lm(TIV ~ age + incel, data = dataTIV))$adj.r.squared/(1 - summary(lm(TIV ~ age + incel, data = dataTIV))$adj.r.squared), sig.level = .05, power = NULL))$power
 ```
 
-## Mating measures
+### Mating measures
 
-### Sociosexual desires
+#### Sociosexual desires
 
 ```{r}
 datasoides <- data_mh %>%
-  filter(soidesZ >= -3.30 & soidesZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(soidesZ >= -3.30 & soidesZ <= 3.30)
+  
 favstats(~ soides, incel, data = datasoides)
 
-summary(lm(soides ~ age + incel, data = datasoides))
-lm.beta(lm(soides~ age + incel, data = datasoides))
-supernova(lm(soides ~ age + incel, data = datasoides))
+hist(lm(soides ~ as.factor(incel), data = datasoides)$residuals)
+qqPlot(lm(soides ~ as.factor(incel), data = datasoides)$residuals)
+
+leveneTest(soides ~ as.factor(incel), data = datasoides)$`Pr(>F)` #homogeneity NOT met
+t.test(soides ~ incel, data = datasoides, var.equal = FALSE) #normal theory 95%CIs[.12, .92]
+cohens_d(soides ~ incel, data = datasoides)
 
 set.seed(1993)
-soides.boot <- Boot(lm(soides ~ age + incel, data = datasoides), f = coef, R = 5000)
-confint(soides.boot, level = .95, type = "norm")
-
-pcor.test(datasoides$soides,datasoides$incel,datasoides$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(soides ~ age + incel, data = datasoides))$df[2], 
-             f2 = summary(lm(soides ~ age + incel, data = datasoides))$adj.r.squared/(1 - summary(lm(soides ~ age + incel, data = datasoides))$adj.r.squared), sig.level = .05, power = NULL))$power
+soides.boot <- Boot(lm(soides ~ as.factor(incel), data = datasoides), f=coef, R = 5000)
+confint(soides.boot, level = .95, type = "norm") 
+summary(soides.boot)
 ```
 
-### Perceived mate value
+#### Perceived mate value
 
 ```{r}
 dataMVS <- data_mh %>%
-  filter(MVSZ >= -3.30 & MVSZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(MVSZ >= -3.30 & MVSZ <= 3.30)
+  
 favstats(~ MVS, incel, data = dataMVS)
 
-summary(lm(MVS ~ age + incel, data = dataMVS))
-lm.beta(lm(MVS~ age + incel, data = dataMVS))
-supernova(lm(MVS ~ age + incel, data = dataMVS))
+hist(lm(MVS ~ as.factor(incel), data = dataMVS)$residuals)
+qqPlot(lm(MVS ~ as.factor(incel), data = dataMVS)$residuals) #alright
+
+leveneTest(MVS ~ as.factor(incel), data = dataMVS)$`Pr(>F)` #homogeneity NOT met
+t.test(MVS ~ incel, data = dataMVS, var.equal = FALSE) #normal theory 95%CIs[-1.42, -.86]
+cohens_d(MVS ~ incel, data = dataMVS)
 
 set.seed(1993)
-MVS.boot <- Boot(lm(MVS ~ age + incel, data = dataMVS), f = coef, R = 5000)
-confint(MVS.boot, level = .95, type = "norm")
-
-pcor.test(dataMVS$MVS,dataMVS$incel,dataMVS$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(MVS ~ age + incel, data = dataMVS))$df[2], 
-             f2 = summary(lm(MVS ~ age + incel, data = dataMVS))$adj.r.squared/(1 - summary(lm(MVS ~ age + incel, data = dataMVS))$adj.r.squared), sig.level = .05, power = NULL))$power
+MVS.boot <- Boot(lm(MVS ~ as.factor(incel), data = dataMVS), f=coef, R = 5000)
+confint(MVS.boot, level = .95, type = "norm") 
+summary(MVS.boot)
 ```
 
-## Wellbeing measures
+### Wellbeing measures
 
-### Depression 
+#### Depression 
 
 ```{r}
 datadepress <- data_mh %>%
-  filter(PHQ9_meanZ >= -3.30 & PHQ9_meanZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(PHQ9_meanZ >= -3.30 & PHQ9_meanZ <= 3.30)
+  
 favstats(~ PHQ9_mean, incel, data = datadepress)
 
-summary(lm(PHQ9_mean ~ age + incel, data = datadepress))
-lm.beta(lm(PHQ9_mean~ age + incel, data = datadepress))
-supernova(lm(PHQ9_mean ~ age + incel, data = datadepress))
-p.adjust(summary(lm(PHQ9_mean ~ age + incel, data = datadepress))$coefficients[3, 4], method = "bonferroni" , 
+hist(lm(PHQ9_mean ~ as.factor(incel), data = datadepress)$residuals)
+qqPlot(lm(PHQ9_mean ~ as.factor(incel), data = datadepress)$residuals) #alright
+
+leveneTest(PHQ9_mean ~ as.factor(incel), data = datadepress)$`Pr(>F)` #homogeneity met
+PHQ9t <- t.test(PHQ9_mean ~ incel, data = datadepress, var.equal = TRUE) #normal theory 95%CIs[.42, .75]
+PHQ9t
+p.adjust(PHQ9t$p.value, method = "bonferroni" , 
          n = 4)
+cohens_d(PHQ9_mean ~ incel, data = datadepress)
 
 set.seed(1993)
-PHQ9.boot <- Boot(lm(PHQ9_mean ~ age + incel, data = datadepress), f = coef, R = 5000)
-confint(PHQ9.boot, level = .95, type = "norm")
-
-pcor.test(datadepress$PHQ9_mean,datadepress$incel,datadepress$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(PHQ9_mean ~ age + incel, data = datadepress))$df[2], 
-             f2 = summary(lm(PHQ9_mean ~ age + incel, data = datadepress))$adj.r.squared/(1 - summary(lm(PHQ9_mean ~ age + incel, data = datadepress))$adj.r.squared), sig.level = .05, power = NULL))$power
+PHQ9_mean.boot <- Boot(lm(PHQ9_mean ~ as.factor(incel), data = datadepress), f = coef, R = 5000)
+confint(PHQ9_mean.boot, level = .95, type = "norm")
 ```
 
-### Anxiety
+#### Anxiety
 
 ```{r}
 dataGAD <- data_mh %>%
-  filter(GAD_meanZ >= -3.30 & GAD_meanZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(GAD_meanZ >= -3.30 & GAD_meanZ <= 3.30)
+  
 favstats(~ GAD_mean, incel, data = dataGAD)
 
-summary(lm(GAD_mean ~ age + incel, data = dataGAD))
-lm.beta(lm(GAD_mean~ age + incel, data = dataGAD))
-supernova(lm(GAD_mean ~ age + incel, data = dataGAD))
-p.adjust(summary(lm(GAD_mean ~ age + incel, data = dataGAD))$coefficients[3, 4], method = "bonferroni" , 
+hist(lm(GAD_mean ~ as.factor(incel), data = dataGAD)$residuals)
+qqPlot(lm(GAD_mean ~ as.factor(incel), data = dataGAD)$residuals) #not the best, not the worst
+
+leveneTest(GAD_mean ~ as.factor(incel), data = dataGAD)$`Pr(>F)` #homogeneity not met
+GADt <- t.test(GAD_mean ~ incel, data = dataGAD, var.equal = FALSE) #normal theory 95%CIs[.32, .72]
+GADt
+p.adjust(GADt$p.value, method = "bonferroni" , 
          n = 4)
+cohens_d(GAD_mean ~ incel, data = dataGAD)
 
 set.seed(1993)
-GAD.boot <- Boot(lm(GAD_mean ~ age + incel, data = dataGAD), f = coef, R = 5000)
-confint(GAD.boot, level = .95, type = "norm")
-
-pcor.test(dataGAD$GAD_mean,dataGAD$incel,dataGAD$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(GAD_mean ~ age + incel, data = dataGAD))$df[2], 
-             f2 = summary(lm(GAD_mean ~ age + incel, data = dataGAD))$adj.r.squared/(1 - summary(lm(GAD_mean ~ age + incel, data = dataGAD))$adj.r.squared), sig.level = .05, power = NULL))$power
+GAD_mean.boot <- Boot(lm(GAD_mean ~ as.factor(incel), data = dataGAD), f = coef, R = 5000)
+confint(GAD_mean.boot, level = .95, type = "norm") 
 ```
 
-### Loneliness
+#### Loneliness
 
 ```{r}
 datalonely <- data_mh %>%
-  filter(lonely_meanZ >= -3.30 & lonely_meanZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(lonely_meanZ >= -3.30 & lonely_meanZ <= 3.30)
+  
 favstats(~ lonely_mean, incel, data = datalonely)
 
-summary(lm(lonely_mean ~ age + incel, data = datalonely))
-lm.beta(lm(lonely_mean~ age + incel, data = datalonely))
-supernova(lm(lonely_mean ~ age + incel, data = datalonely))
-p.adjust(summary(lm(lonely_mean ~ age + incel, data = datalonely))$coefficients[3, 4], method = "bonferroni" , 
+hist(lm(lonely_mean ~ as.factor(incel), data = datalonely)$residuals)
+qqPlot(lm(lonely_mean ~ as.factor(incel), data = datalonely)$residuals) #BIG NOPE
+
+leveneTest(lonely_mean ~ as.factor(incel), data = datalonely)$`Pr(>F)` #homogeneity not met
+lonelyt <- t.test(lonely_mean ~ incel, data = datalonely, var.equal = FALSE) #normal theory 95%CIs[.40, .62]
+lonelyt
+p.adjust(lonelyt$p.value, method = "bonferroni" , 
          n = 4)
+cohens_d(lonely_mean ~ incel, data = datalonely)
 
 set.seed(1993)
-lonely.boot <- Boot(lm(lonely_mean ~ age + incel, data = datalonely), f = coef, R = 5000)
-confint(lonely.boot, level = .95, type = "norm")
-
-pcor.test(datalonely$lonely_mean,datalonely$incel,datalonely$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(lonely_mean ~ age + incel, data = datalonely))$df[2], 
-             f2 = summary(lm(lonely_mean ~ age + incel, data = datalonely))$adj.r.squared/(1 - summary(lm(lonely_mean ~ age + incel, data = datalonely))$adj.r.squared), sig.level = .05, power = NULL))$power
+lonely_mean.boot <- Boot(lm(lonely_mean ~ as.factor(incel), data = datalonely), f=coef, R = 5000)
+confint(lonely_mean.boot, level = .95, type = "norm") 
 ```
 
-### Satisfaction with life
+#### Satisfaction with life
 
 ```{r}
 dataSWL <- data_mh %>%
-  filter(SWL_meanZ >= -3.30 & SWL_meanZ <= 3.30 & ageZ >= -3.30 & ageZ <= 3.30)
-
+  filter(SWL_meanZ >= -3.30 & SWL_meanZ <= 3.30)
+  
 favstats(~ SWL_mean, incel, data = dataSWL)
 
-summary(lm(SWL_mean ~ age + incel, data = dataSWL))
-lm.beta(lm(SWL_mean~ age + incel, data = dataSWL))
-supernova(lm(SWL_mean ~ age + incel, data = dataSWL))
-p.adjust(summary(lm(SWL_mean ~ age + incel, data = dataSWL))$coefficients[3, 4], method = "bonferroni" , 
+hist(lm(SWL_mean ~ as.factor(incel), data = dataSWL)$residuals)
+qqPlot(lm(SWL_mean ~ as.factor(incel), data = dataSWL)$residuals)
+
+leveneTest(SWL_mean ~ as.factor(incel), data = dataSWL)$`Pr(>F)` #homogeneity met
+SWLt <- t.test(SWL_mean ~ incel, data = dataSWL, var.equal = TRUE) #normal theory 95%CIs[-1.60, -.96]
+SWLt
+p.adjust(SWLt$p.value, method = "bonferroni" , 
          n = 4)
+cohens_d(SWL_mean ~ incel, data = dataSWL)
 
 set.seed(1993)
-SWL.boot <- Boot(lm(SWL_mean ~ age + incel, data = dataSWL), f = coef, R = 5000)
-confint(SWL.boot, level = .95, type = "norm")
-
-pcor.test(dataSWL$SWL_mean,dataSWL$incel,dataSWL$age)
-
-(pwr.f2.test(u = 2, v = summary(lm(SWL_mean ~ age + incel, data = dataSWL))$df[2], 
-             f2 = summary(lm(SWL_mean ~ age + incel, data = dataSWL))$adj.r.squared/(1 - summary(lm(SWL_mean ~ age + incel, data = dataSWL))$adj.r.squared), sig.level = .05, power = NULL))$power
+SWL_mean.boot <- Boot(lm(SWL_mean ~ as.factor(incel), data = dataSWL), f=coef, R = 5000)
+confint(SWL_mean.boot, level = .95, type = "norm") 
 ```
 
 # Chi-squares comparing proportion of incel vs non-incel men categorised as depressed and anxious
