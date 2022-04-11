@@ -120,7 +120,7 @@ age.boot <- Boot(lm(age ~ incel, data = data_age), f = coef, R = 5000)
 confint(age.boot, level = .95, type = "norm")
 ```
 
-Incels were significantly younger (*M* = 27.94, *SD* = 7.26, *n* = 146) than were non-incels (*M* = 32.98, *SD* = 9.66, *n* = 371), *t*(351.08) = -6.44, *p* < .001, *d* = .59, *95%BootCI*[-6.57, -3.50]. Thus, instead of computing independent samples t-tests to compare the two groups on our outcome variables (i.e., TIV, mental health, MVS, and SOI desire), we computed a series of multiple regressions using age as a control variable.
+Incels were significantly younger (*M* = 27.94, *SD* = 7.26, *n* = 146) than non-incels (*M* = 32.98, *SD* = 9.66, *n* = 371), *t*(351.08) = -6.44, *p* < .001, *d* = .59, *95%BootCI*[-6.57, -3.50]. Thus, instead of computing independent samples t-tests to compare the two groups on our outcome variables (i.e., TIV, mental health, MVS, and SOI desire), we computed a series of multiple regressions using age as a control variable.
 
 ## Tendencies for interpersonal victimhood
 
