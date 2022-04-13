@@ -447,8 +447,8 @@ The adjusted residual for severe depression is no longer significant when applyi
 ## Correlations among SOI desire, TIV, and mental health outcomes
 
 ```{r}
-rcorr(as.matrix(data_mh[,c("PHQ9_mean","GAD_mean", "lonely_mean", "SWL_mean", "soides", "TIV")], type="pearson"))
-select(data_mh, c(PHQ9_mean, GAD_mean, lonely_mean, SWL_mean, soides, TIV)) %>%
+rcorr(as.matrix(data_mh[,c("PHQ9_mean","GAD_mean", "lonely_mean", "SWL_mean", "soides", "TIV", "age")], type="pearson"))
+dplyr::select(data_mh, c(PHQ9_mean, GAD_mean, lonely_mean, SWL_mean, soides, TIV, age)) %>%
   apa.cor.table(data_mh, show.conf.interval = TRUE, filename = "Table_4_incel_mental_health.doc", table.number = 3)
 ```
 
@@ -568,20 +568,21 @@ lm.beta(SWL.mod)
 
 ## Other incel vs non-incel comparisons
 
-Beyond our main hypotheses, we ran exploratory analyses comparing the proportion of incel and non-incel men in variables such as living with self-reported mental and physical conditions, education, employment status, living arrangements, political affiliation, and relationship seeking.
+Beyond our main hypotheses, we ran exploratory analyses comparing the proportion of incel and non-incel men in variables such as living with self-reported mental and physical conditions, education, employment status, living arrangements, political affiliation, relationship seeking, and consideration of getting plastic surgery
 
 ```{r}
 data_exp <- data %>%
-  dplyr::select(., (c(incel, sex, employ, edu, politic, `M Health`, `P Health`, living, relation, seekrelation))) %>%
+  dplyr::select(., (c(incel, sex, employ, edu, politic, `M Health`, `P Health`, living, relation, seekrelation, surgery))) %>%
   rename(mental = `M Health`, physical = `P Health`) %>%
   filter(sex == 0 & incel == 0 | sex == 0 & incel == 1)
 
 data_exp <- data_exp %>%
   group_by(incel) %>%
-  mutate(politicZ = scale(politic))%>%
+  mutate(politicZ = scale(politic), surgeryZ = scale(surgery))%>%
   ungroup()
 
 range(data_exp$politicZ, na.rm = TRUE) #no outliers for the politic variable
+range(data_exp$surgeryZ, na.rm = TRUE) #none for surgery either
 ```
 
 For education, original categories (see report) were collapsed into 0 = Secondary education or less, 1 = Undergraduate, 2 = Postraduate so we would have enough expected cases per cell to run a chi-square. Similarly, for employment stauts, original categories were collapsed into 0 = non-NEET and 1 = NEET. For living arrangements, old categories were collapsed into 0 = living alone, 1 = cohabiting (with a housemate or romantic partner), and 2 = living with carers (parents, family, or other)
@@ -684,6 +685,19 @@ cohens_d(politic ~ incel, data = data_pol)
 set.seed(1993)
 politic.boot <- Boot(lm(politic ~ as.factor(incel), data = data_pol), f=coef, R = 5000)
 confint(politic.boot, level = .95, type = "norm") 
+
+data_pol2 <- data_pol %>%
+  filter(incel == 1) %>%
+  mutate(politic_cat = ifelse(politic == 5, 1, 
+                              ifelse(politic == 4, 1, 
+                                     ifelse(politic == 3, 3, 
+                                            ifelse(politic == 2, 0, 0)))))
+
+data_pol2$politic_cat <- factor(data_pol2$politic_cat, levels = c('0', '1', '3'),
+                              labels = c('Left-leaning','Right-leaning', 'Centre'))
+                              
+tblpolitic <- xtabs(~ incel + politic_cat, data = data_pol2)
+rowpolitic <- prop.table(tblpolitic, 1)
 ```
 
 ### Relationship seeking
@@ -701,8 +715,51 @@ cohens_d(seekrelation ~ incel, data = data_love)
 
 set.seed(1993)
 seekrelation.boot <- Boot(lm(seekrelation ~ as.factor(incel), data = data_love), f=coef, R = 5000)
-confint(seekrelation.boot, level = .95, type = "norm") 
+confint(seekrelation.boot, level = .95, type = "norm")
+
+data_love <- data_love %>%
+  mutate(love_cat = ifelse(seekrelation == 5, 1, 
+                              ifelse(seekrelation == 4, 1, 
+                                     ifelse(seekrelation == 3, 3, 
+                                            ifelse(seekrelation == 2, 0, 0)))))
+data_love$love_cat <- factor(data_love$love_cat, levels = c('0', '1', '3'),
+                              labels = c('No','Yes', 'Not sure'))
+                              
+tbllove <- xtabs(~ incel + love_cat, data = data_love)
+rowlove <- prop.table(tbllove, 1)
 ```
+
+### Cosmetic surgery
+
+```{r}
+data_surgery <- data_exp %>%
+  mutate(surgery = 6 - surgery) %>% #recode so greater scores = greater desire to get surgery
+  filter(surgeryZ >= -3.30 & surgeryZ <= 3.30 ) #removes NAs even if there are no outliers
+
+favstats(~ surgery, incel, data = data_surgery)
+
+leveneTest(surgery ~ as.factor(incel), data = data_surgery)$`Pr(>F)` #homogeneity not met
+t.test(surgery ~ incel, data = data_surgery, var.equal = FALSE)
+cohens_d(surgery ~ incel, data = data_surgery)
+
+set.seed(1993)
+surgery.boot <- Boot(lm(surgery ~ as.factor(incel), data = na.omit(data_surgery)), f = coef, R = 5000)
+confint(surgery.boot, level = .95, type = "norm")
+
+data_surgery <- data_surgery %>%
+  mutate(surgery_cat = ifelse(surgery == 5, 1, 
+                              ifelse(surgery == 4, 1, 
+                                     ifelse(surgery == 3, 3, 
+                                            ifelse(surgery == 2, 0, 0)))))
+data_surgery$surgery_cat <- factor(data_surgery$surgery_cat, levels = c('0', '1', '3'),
+                              labels = c('No','Yes', 'Not sure'))
+                              
+tblsurgery <- xtabs(~ incel + surgery_cat, data = data_surgery)
+rowsurgery <- prop.table(tblsurgery, 1)
+
+
+```
+
 
 ## Basic data demographics
 
@@ -741,6 +798,7 @@ summary(data_mh$country_cat)/nrow(data_mh)*100 #breakdown by country
 
   - Do watching porn, using forums, believing in the blackpill or that one will be an incel for life affect incel mental health?
   - Do incels who participate in forums perceive their wellbeing to have improved? (one-sample t w/forumWellbeing)
+  - Do incels really believe in the blackpill? (one-sample t w/blackpill)
   
   - Have incels' opinions of women changed as a result of forum use? (one-sample t w/ femopinion) 
   - Are incels who participate in forums or watch more porn more feminist (or likely to identify as one)?
@@ -786,4 +844,49 @@ summary(incel_SWL.lm)
 lm.beta(incel_SWL.lm)
 
 t.test(data_incels$forumWellbeing, mu = 3)
+t.test(data_incels$blackpill, mu = 3)
+t.test(data_incels$incel4life, mu = 3) #only significant one
+(favstats(~ incel4life, data = data_incels)$mean - 3)/favstats(~ incel4life, data = data_incels)$sd #effect size
+
+#Finding percentages of incels who use forums who agree these have helped their wellbeing
+
+data_forums <- data_incels %>%
+  filter(forums == 1) %>%
+  mutate(forum_cat = ifelse(forumWellbeing == 5, 1, 
+                              ifelse(forumWellbeing == 4, 1, 
+                                     ifelse(forumWellbeing == 3, 3, 
+                                            ifelse(forumWellbeing == 2, 0, 0)))))
+
+data_forums$forum_cat <- factor(data_forums$forum_cat, levels = c('0', '1', '3'),
+                              labels = c('No','Yes', 'Not sure'))
+                              
+tblforum <- xtabs(~ incel + forum_cat, data = data_forums)
+rowforum <- prop.table(tblforum, 1)
+
+#Finding percentages of incels who believe, to some degree, in the blackpill vs not and in permanency of inceldom
+
+data_incels <- data_incels %>%
+  mutate(blackpill_cat = ifelse(blackpill == 5, 1, 
+                              ifelse(blackpill == 4, 1, 
+                                     ifelse(blackpill == 3, 3, 
+                                            ifelse(blackpill == 2, 0, 0)))))
+
+data_incels$blackpill_cat <- factor(data_incels$blackpill_cat, levels = c('0', '1', '3'),
+                              labels = c('No','Yes', 'Not sure'))
+                              
+tblblackpill <- xtabs(~ incel + blackpill_cat, data = data_incels)
+rowblackpill <- prop.table(tblblackpill, 1)
+
+
+data_incels <- data_incels %>%
+  mutate(incel4life_cat = ifelse(incel4life == 5, 1, 
+                              ifelse(incel4life == 4, 1, 
+                                     ifelse(incel4life == 3, 3, 
+                                            ifelse(incel4life == 2, 0, 0)))))
+
+data_incels$incel4life_cat <- factor(data_incels$incel4life_cat, levels = c('0', '1', '3'),
+                              labels = c('No','Yes', 'Not sure'))
+                              
+tblincel4life <- xtabs(~ incel + incel4life_cat, data = data_incels)
+rowincel4life <- prop.table(tblincel4life, 1)
 ```
