@@ -96,7 +96,7 @@ range(data_mh$lonely_meanZ, na.rm = TRUE)
 range(data_mh$SWL_meanZ, na.rm = TRUE)
 ```
 
-# Group comparisons
+# Independent sample t-tests
 
 An initial look at mean age for incels vs non-incels showed a difference of approximately 5 years, thus an independent samples t-test was conducted to assess if this difference was significant so we would know to control for age (e.g., younger people may be more likely to score higher on TIV or mental health issues, thus if the incel sample is younger than the non-incel sample, controlling for age would be important)
 
@@ -122,9 +122,9 @@ confint(age.boot, level = .95, type = "norm")
 
 Incels were significantly younger (*M* = 27.94, *SD* = 7.26, *n* = 146) than non-incels (*M* = 32.98, *SD* = 9.66, *n* = 371), *t*(351.08) = -6.44, *p* < .001, *d* = .59, *95%BootCI*[-6.57, -3.50]. Thus, instead of computing independent samples t-tests to compare the two groups on our outcome variables (i.e., TIV, mental health, MVS, and SOI desire), we computed a series of multiple regressions using age as a control variable. These are currently on the main branch
 
-### Tendencies for interpersonal victimhood
+## Tendencies for interpersonal victimhood
 
-#### Need for recognition
+### Need for recognition
 
 ```{r}
 dataNFR <- data_mh %>%
@@ -157,7 +157,7 @@ lm.beta(lm(TIV_NFR ~ age + incel, data = dataNFR))
 supernova(lm(TIV_NFR ~ age + incel, data = dataNFR))
 ```
 
-#### Moral elitism
+### Moral elitism
 
 ```{r}
 dataME <- data_mh %>%
@@ -180,7 +180,7 @@ ME.boot <- Boot(lm(TIV_ME ~ incel, data = dataME), f = coef, R = 5000)
 confint(ME.boot, level = .95, type = "norm")
 ```
 
-#### Lack of empathy
+### Lack of empathy
 
 ```{r}
 dataLoE <- data_mh %>%
@@ -202,7 +202,7 @@ LoE.boot <- Boot(lm(TIV_LoE ~ incel, data = dataLoE), f = coef, R = 5000)
 confint(LoE.boot, level = .95, type = "norm")
 ```
 
-#### Rumination
+### Rumination
 
 ```{r}
 dataRUM <- data_mh %>%
@@ -225,7 +225,7 @@ RUM.boot <- Boot(lm(TIV_RUM ~ incel, data = dataRUM), f = coef, R = 5000)
 confint(RUM.boot, level = .95, type = "norm")
 ```
 
-#### Overall TIV
+### Overall TIV
 
 ```{r}
 dataTIV <- data_mh %>%
@@ -248,9 +248,9 @@ TIV.boot <- Boot(lm(TIV ~ incel, data = dataTIV), f = coef, R = 5000)
 confint(TIV.boot, level = .95, type = "norm")
 ```
 
-### Mating measures
+## Mating measures
 
-#### Sociosexual desires
+### Sociosexual desires
 
 ```{r}
 datasoides <- data_mh %>%
@@ -271,7 +271,7 @@ confint(soides.boot, level = .95, type = "norm")
 summary(soides.boot)
 ```
 
-#### Perceived mate value
+### Perceived mate value
 
 ```{r}
 dataMVS <- data_mh %>%
@@ -292,9 +292,9 @@ confint(MVS.boot, level = .95, type = "norm")
 summary(MVS.boot)
 ```
 
-### Wellbeing measures
+## Wellbeing measures
 
-#### Depression 
+### Depression 
 
 ```{r}
 datadepress <- data_mh %>%
@@ -317,7 +317,7 @@ PHQ9_mean.boot <- Boot(lm(PHQ9_mean ~ as.factor(incel), data = datadepress), f =
 confint(PHQ9_mean.boot, level = .95, type = "norm")
 ```
 
-#### Anxiety
+### Anxiety
 
 ```{r}
 dataGAD <- data_mh %>%
@@ -340,7 +340,7 @@ GAD_mean.boot <- Boot(lm(GAD_mean ~ as.factor(incel), data = dataGAD), f = coef,
 confint(GAD_mean.boot, level = .95, type = "norm") 
 ```
 
-#### Loneliness
+### Loneliness
 
 ```{r}
 datalonely <- data_mh %>%
@@ -363,7 +363,7 @@ lonely_mean.boot <- Boot(lm(lonely_mean ~ as.factor(incel), data = datalonely), 
 confint(lonely_mean.boot, level = .95, type = "norm") 
 ```
 
-#### Satisfaction with life
+### Satisfaction with life
 
 ```{r}
 dataSWL <- data_mh %>%
@@ -568,7 +568,7 @@ lm.beta(SWL.mod)
 
 ## Other incel vs non-incel comparisons
 
-Beyond our main hypotheses, we ran exploratory analyses comparing the proportion of incel and non-incel men in variables such as living with self-reported mental and physical conditions, education, employment status, living arrangements, political affiliation, relationship seeking, and consideration of getting plastic surgery
+Beyond our main hypotheses, we ran exploratory analyses comparing the proportion of incel and non-incel men in variables such as living with self-reported mental and physical conditions, education, employment status, living arrangements, political affiliation, relationship seeking, and consideration of getting plastic surgery.
 
 ```{r}
 data_exp <- data %>%
@@ -704,7 +704,7 @@ rowpolitic <- prop.table(tblpolitic, 1)
 
 ```{r}
 data_love <- data_exp %>%
-  filter(relation == 1 & seekrelation < 6) %>% #all the single gentlemen, all the single gentlmen, oh-oh-oh, oh-oh-oh-oh
+  filter(relation == 1 & seekrelation < 6) %>% #all the single gentlemen
   mutate(seekrelation = 6 - seekrelation) #recoding seekrelation so > scores equal > desire to seek relationship
 
 favstats(~ seekrelation, incel, data = data_love)
@@ -756,12 +756,10 @@ data_surgery$surgery_cat <- factor(data_surgery$surgery_cat, levels = c('0', '1'
                               
 tblsurgery <- xtabs(~ incel + surgery_cat, data = data_surgery)
 rowsurgery <- prop.table(tblsurgery, 1)
-
-
 ```
 
 
-## Basic data demographics
+## Ethnic breakdowns (whole sample and by incel self-identification)
 
 ```{r}
 data_mh <- data_mh %>%
@@ -792,6 +790,23 @@ data_mh$country_cat <- factor(data_mh$country, levels = c('0', '1', '2', '3'),
 
 summary(data_mh$ethnic_cat)/nrow(data_mh)*100 #breakdown by ethnicity
 summary(data_mh$country_cat)/nrow(data_mh)*100 #breakdown by country
+
+#Proportionf of white and BIPOC by incel self identification
+data_mh <- data_mh %>%
+  mutate(ethnic_di = ifelse(ethnicity == 1, 0, 1))
+
+data_mh$ethnic_di <- factor(data_mh$ethnic_di, levels = c('0', '1'),
+                              labels = c('White','BIPOC'))
+
+tblethnic <- xtabs(~ incel + ethnic_di, data = data_mh)
+rowethnic <- prop.table(tblethnic, 1)
+chisq.test(tblethnic)
+
+padjethnic <-.05/(nrow(tblethnic)*ncol(tblethnic)) #new alpha value = .0125
+critethnic <- qnorm(padjethnic/2) #new critical value of |2.50|
+
+ethnicexp <- chisq.test(tblethnic)$expected
+ethnicres <- chisq.test(tblethnic)$stdres
 ```
 
 ## Which incels fair better?
@@ -801,7 +816,7 @@ summary(data_mh$country_cat)/nrow(data_mh)*100 #breakdown by country
   - Do incels really believe in the blackpill? (one-sample t w/blackpill)
   
   - Have incels' opinions of women changed as a result of forum use? (one-sample t w/ femopinion) 
-  - Are incels who participate in forums or watch more porn more feminist (or likely to identify as one)?
+  - Are incels who participate in forums or watch more porn more feminist (or likely to identify as one; feminist regressed on porn and forum)?
   
 ```{r}
 data_incels <- data_mh %>%
@@ -818,6 +833,8 @@ range(data_incels$blackZ, na.rm = TRUE)
 range(data_incels$forumWellbeingZ, na.rm = TRUE)
 range(data_incels$femopinionZ, na.rm = TRUE)
 range(data_incels$feministZ, na.rm = TRUE)
+
+#Regressions 
 
 incel_PHQ9.lm <- data_incels %>%
   filter(pornZ >= -3.30 & pornZ <= 3.30 ) %>%
@@ -843,10 +860,19 @@ incel_SWL.lm <- data_incels %>%
 summary(incel_SWL.lm)
 lm.beta(incel_SWL.lm)
 
+incel_feminist.lm <- data_incels %>%
+  filter(pornZ >= -3.30 & pornZ <= 3.30 ) %>%
+  lm(feminist ~ 1 + porn + forums, data = .)
+summary(incel_feminist.lm)
+
+#One sample t-tests
+
 t.test(data_incels$forumWellbeing, mu = 3)
 t.test(data_incels$blackpill, mu = 3)
-t.test(data_incels$incel4life, mu = 3) #only significant one
+t.test(data_incels$incel4life, mu = 3) #significant
 (favstats(~ incel4life, data = data_incels)$mean - 3)/favstats(~ incel4life, data = data_incels)$sd #effect size
+t.test(data_incels$femopinion, mu = 3)
+(favstats(~ femopinion, data = data_incels)$mean - 3)/favstats(~ femopinion, data = data_incels)$sd
 
 #Finding percentages of incels who use forums who agree these have helped their wellbeing
 
