@@ -1,0 +1,72 @@
+---
+title: "mating psychology"
+author:
+  - William Costello, Swansea University
+  - Vania Rolón, Brunel University London
+  - Andrew Thomas, Swansea University
+  - David Schmitt, Brunel University London
+output:
+  html_document:
+    toc: yes
+---
+
+```{r message=FALSE, warning=FALSE}
+library(readr)
+library(tidyverse)
+library(psych)
+library(lm.beta)
+
+data <- read_csv("C:/Users/Vania/Desktop/psychology of incels/incel cleaned data.csv")
+```
+
+The hypotheses regarding mating-related variables were:
+
+* Incel men will report more external and internal reasons for being single
+* Incel men will report lower minimum mate preferences than non-incel men (15 traits plus overall, use Bonferroni-Holm correction)
+* Incel men, more than non-incel men, will overestimate women’s minimum mate preferences and overemphasise the importance of physical-attractiveness
+
+# Reasons for being single
+
+```{r}
+data_RBS <- data %>%
+  filter(sex == 0 & incel == 0 | sex == 0 & incel == 1) %>%
+  dplyr::select(., (c(incel, RBS_int, RBS_ext))) %>%
+  group_by(incel) %>%
+  mutate(RBS_intZ = scale(RBS_int), RBS_extZ = scale(RBS_ext)) %>%
+  ungroup()
+
+range(data_RBS$RBS_intZ, na.rm = TRUE)
+sum(data_RBS$RBS_intZ > 3.30, na.rm = TRUE) #3 outliers
+range(data_RBS$RBS_extZ, na.rm = TRUE)
+sum(data_RBS$RBS_extZ > 3.30, na.rm = TRUE) #6 outliers
+
+# Internal reasons
+data_RBSint <- data_RBS %>%
+  filter(RBS_intZ >= -3.30 & RBS_intZ <= 3.30)
+
+favstats(~ RBS_int, incel, data = data_RBSint)
+
+(leveneTest(RBS_int ~ as.factor(incel), data = data_RBSint))$`Pr(>F)` #homogeneity not met
+t.test(RBS_int ~ incel, data = data_RBSint, var.equal = FALSE) #normal theory 95%CIs[.16, .54]
+
+cohens_d(RBS_int ~ incel, data = data_RBSint)
+
+set.seed(1993)
+RBSint.boot <- Boot(lm(RBS_int ~ incel, data = data_RBSint), f = coef, R = 5000)
+confint(RBSint.boot, level = .95, type = "norm")
+
+# External reasons
+data_RBSext <- data_RBS %>%
+  filter(RBS_extZ >= -3.30 & RBS_extZ <= 3.30)
+
+favstats(~ RBS_ext, incel, data = data_RBSext)
+
+(leveneTest(RBS_ext ~ as.factor(incel), data = data_RBSext))$`Pr(>F)` #homogeneity not met
+t.test(RBS_ext ~ incel, data = data_RBSext, var.equal = FALSE) #normal theory 95%CIs[.16, .54]
+
+cohens_d(RBS_ext ~ incel, data = data_RBSext)
+
+set.seed(1993)
+RBSext.boot <- Boot(lm(RBS_ext ~ incel, data = data_RBSext), f = coef, R = 5000)
+confint(RBSext.boot, level = .95, type = "norm")
+```
