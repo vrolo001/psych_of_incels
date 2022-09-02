@@ -67,8 +67,8 @@ data_mh <- data %>%
   dplyr::select(., (c(incel, sex, age, soides, MVS, 
                       PHQ9_mean, GAD_mean, lonely_mean, SWL_mean, PHQ9_all, GAD_all, lonely_all, SWL_all,
                       TIV_NFR, TIV_ME, TIV_LoE, TIV_RUM, TIV,
-                      ethnic_1:ethnic_7, country, 
-                      porn, forums, incel4life, blackpill, forumWellbeing, femopinion, feminist))) %>% #for exploratory purposes
+                      ethnic_1:ethnic_7, sexorien, gender, country, 
+                      politic, porn, forums, incel4life, blackpill, forumWellbeing, femopinion, feminist))) %>% #for exploratory
   filter(sex == 0 & incel == 0 | sex == 0 & incel == 1)
 
 data_mh <- data_mh %>%
@@ -450,6 +450,50 @@ The adjusted residual for severe depression is no longer significant when applyi
 rcorr(as.matrix(data_mh[,c("PHQ9_mean","GAD_mean", "lonely_mean", "SWL_mean", "soides", "TIV", "age")], type="pearson"))
 dplyr::select(data_mh, c(PHQ9_mean, GAD_mean, lonely_mean, SWL_mean, soides, TIV, age)) %>%
   apa.cor.table(data_mh, show.conf.interval = TRUE, filename = "Table_4_incel_mental_health.doc", table.number = 3)
+
+data_incels <- data_mh %>%
+  filter(incel == 1)
+
+data_nonincels <- data_mh %>%
+  filter(incel == 0)
+
+rcorr(as.matrix(data_incels[, c("TIV", "PHQ9_mean", "GAD_mean", "lonely_mean", "SWL_mean")], type = "pearson"))
+rcorr(as.matrix(data_nonincels[, c("TIV", "PHQ9_mean", "GAD_mean", "lonely_mean", "SWL_mean")], type = "pearson"))
+
+rcorr(as.matrix(data_incels[, c("soides", "PHQ9_mean", "GAD_mean", "lonely_mean", "SWL_mean")], type = "pearson"))
+rcorr(as.matrix(data_nonincels[, c("soides", "PHQ9_mean", "GAD_mean", "lonely_mean", "SWL_mean")], type = "pearson"))
+
+data_list <- list(data_incels = as.data.frame(data_incels),
+                 data_nonincels = as.data.frame(data_nonincels))
+################################### Fisher's Z ###################################
+library(cocor)
+library(lsr)
+
+#TIV
+cocor(formula = ~ TIV + PHQ9_mean | TIV + PHQ9_mean, 
+      data = data_list)
+
+cocor(formula = ~ TIV + GAD_mean | TIV + GAD_mean, 
+      data = data_list)
+
+cocor(formula = ~ TIV + lonely_mean | TIV + lonely_mean, 
+      data = data_list)
+
+cocor(formula = ~ TIV + SWL_mean | TIV + SWL_mean, 
+      data = data_list)
+
+#SOI desire
+cocor(formula = ~ soides + PHQ9_mean | soides + PHQ9_mean, 
+      data = data_list)
+
+cocor(formula = ~ soides + GAD_mean | soides + GAD_mean, 
+      data = data_list)
+
+cocor(formula = ~ soides + lonely_mean | soides + lonely_mean, 
+      data = data_list)
+
+cocor(formula = ~ soides + SWL_mean | soides + SWL_mean, 
+      data = data_list)
 ```
 
 ## Depression
@@ -564,7 +608,7 @@ supernova(SWL.mod)$tbl$PRE[6] #gives change in R2 as a result of the incel-TIV i
 lm.beta(SWL.mod)
 ```
 
-# Exploratory analyses
+# Exploratory analyses & demographics
 
 ## Other incel vs non-incel comparisons
 
@@ -573,7 +617,7 @@ Beyond our main hypotheses, we ran exploratory analyses comparing the proportion
 ```{r}
 data_exp <- data %>%
   dplyr::select(., (c(incel, sex, employ, edu, politic, `M Health`, `P Health`, living, relation, seekrelation, surgery))) %>%
-  rename(mental = `M Health`, physical = `P Health`) %>%
+  mutate(mental = `M Health`, physical = `P Health`) %>%
   filter(sex == 0 & incel == 0 | sex == 0 & incel == 1)
 
 data_exp <- data_exp %>%
@@ -687,7 +731,6 @@ politic.boot <- Boot(lm(politic ~ as.factor(incel), data = data_pol), f=coef, R 
 confint(politic.boot, level = .95, type = "norm") 
 
 data_pol2 <- data_pol %>%
-  filter(incel == 1) %>%
   mutate(politic_cat = ifelse(politic == 5, 1, 
                               ifelse(politic == 4, 1, 
                                      ifelse(politic == 3, 3, 
@@ -758,7 +801,6 @@ tblsurgery <- xtabs(~ incel + surgery_cat, data = data_surgery)
 rowsurgery <- prop.table(tblsurgery, 1)
 ```
 
-
 ## Ethnic breakdowns (whole sample and by incel self-identification)
 
 ```{r}
@@ -791,7 +833,7 @@ data_mh$country_cat <- factor(data_mh$country, levels = c('0', '1', '2', '3'),
 summary(data_mh$ethnic_cat)/nrow(data_mh)*100 #breakdown by ethnicity
 summary(data_mh$country_cat)/nrow(data_mh)*100 #breakdown by country
 
-#Proportionf of white and BIPOC by incel self identification
+#Proportion of white and BIPOC by incel self identification
 data_mh <- data_mh %>%
   mutate(ethnic_di = ifelse(ethnicity == 1, 0, 1))
 
@@ -800,6 +842,7 @@ data_mh$ethnic_di <- factor(data_mh$ethnic_di, levels = c('0', '1'),
 
 tblethnic <- xtabs(~ incel + ethnic_di, data = data_mh)
 rowethnic <- prop.table(tblethnic, 1)
+colethnic <- prop.table(tblethnic, 2)
 chisq.test(tblethnic)
 
 padjethnic <-.05/(nrow(tblethnic)*ncol(tblethnic)) #new alpha value = .0125
@@ -807,6 +850,50 @@ critethnic <- qnorm(padjethnic/2) #new critical value of |2.50|
 
 ethnicexp <- chisq.test(tblethnic)$expected
 ethnicres <- chisq.test(tblethnic)$stdres
+
+```
+
+## Gender identity (whole sample and by incel-identification)
+
+```{r}
+data_mh$gender_cat <- factor(data_mh$gender, levels = c("0", "1", "2", "3", "4", "5", "6"),
+                             labels = c("man", "woman", "non-binary", "prefer not to say", "other", "trans male", "trans female"))
+
+summary(data_mh$gender_cat)/nrow(data_mh)*100 #breakdown by gender identity
+prop.table(xtabs(~ incel + gender_cat, data = data_mh), 1)*100 #breakdown by incel and gender identity
+
+data_mh <- data_mh %>%
+  mutate(gender_di = ifelse(gender == 0, 0, 
+                            ifelse(gender == 1 | gender == 2 | gender == 4 | gender == 6, 1, NaN)))
+
+data_mh$gender_di <- factor(data_mh$gender_di, levels = c('0', '1'),
+                              labels = c('Cisgender','non-cis'))
+
+tblgender <- xtabs(~ incel + gender_di, data = data_mh)
+rowgender <- prop.table(tblgender, 1)*100
+chisq.test(tblgender)
+
+```
+
+## Sexual orientation (whole sample and by incel-identification)
+
+```{r}
+data_mh$sexorien_cat <- factor(data_mh$sexorien, levels = c ("0", "1", "2", "3", "4", "5", "6", "7"),
+                               labels = c("heterosexual", "gay", "lesbian", "bisexual", "pansexual", "questioning", "prefer not to say", "other"))
+
+summary(data_mh$sexorien_cat)/nrow(data_mh)*100 #breakdown by sexual orientation
+prop.table(xtabs(~ incel + sexorien_cat, data = data_mh), 1)*100 #breakdown by incel and sexual orientation
+
+data_mh <- data_mh %>%
+  mutate(sexorien_di = ifelse(sexorien == 0, 0, 1))
+data_mh$sexorien_di <- factor(data_mh$sexorien_di, levels = c('0', '1'),
+                              labels = c('Hetero','non-hetero'))
+
+
+tblsexorien <- xtabs(~ incel + sexorien_di, data = data_mh)
+rowsexorien <- prop.table(tblsexorien, 1)
+chisq.test(tblsexorien)
+
 ```
 
 ## Which incels fair better?
@@ -814,6 +901,7 @@ ethnicres <- chisq.test(tblethnic)$stdres
   - Do watching porn, using forums, believing in the blackpill or that one will be an incel for life affect incel mental health?
   - Do incels who participate in forums perceive their wellbeing to have improved? (one-sample t w/forumWellbeing)
   - Do incels really believe in the blackpill? (one-sample t w/blackpill)
+  - How do forum-using incels differ from non-forum users on variables that are typically thought of as incel-typical and/or maladaptive? (t-tests comparing them on political orientation, blackpill belief, incel permanency, and feminism, and porn use)
   
   - Have incels' opinions of women changed as a result of forum use? (one-sample t w/ femopinion) 
   - Are incels who participate in forums or watch more porn more feminist (or likely to identify as one; feminist regressed on porn and forum)?
@@ -824,15 +912,7 @@ data_incels <- data_mh %>%
   mutate(incel4life = 6 - incel4life, blackpill = 6 - blackpill, forumWellbeing = 6 - forumWellbeing, #recoding so > values = 
          femopinion = 6 - femopinion, feminist = 6 - feminist,                                        # > scores on these variables
          pornZ = scale(porn), incel4lifeZ = scale(incel4life), blackZ = scale(blackpill), forumWellbeingZ = scale(forumWellbeing), 
-         femopinionZ = scale(femopinion), feministZ = scale(feminist))
-
-#checking for outliers
-range(data_incels$pornZ, na.rm = TRUE) #yup, one outlier when looking at the sum of cases that are > 3.30
-range(data_incels$incel4lifeZ, na.rm = TRUE)
-range(data_incels$blackZ, na.rm = TRUE)
-range(data_incels$forumWellbeingZ, na.rm = TRUE)
-range(data_incels$femopinionZ, na.rm = TRUE)
-range(data_incels$feministZ, na.rm = TRUE)
+         femopinionZ = scale(femopinion), feministZ = scale(feminist)) #only 1 outlier for porn
 
 #Regressions 
 
@@ -874,6 +954,35 @@ t.test(data_incels$incel4life, mu = 3) #significant
 t.test(data_incels$femopinion, mu = 3)
 (favstats(~ femopinion, data = data_incels)$mean - 3)/favstats(~ femopinion, data = data_incels)$sd
 
+#Group comparisons (forum users vs non users)
+
+data_users <- data_mh %>%
+  filter(incel == 1) %>%
+  mutate(incel4life = 6 - incel4life, blackpill = 6 - blackpill, feminist = 6 - feminist, #recoding so > values = > scores
+        politicZ = scale(politic), incel4lifeZ = scale(incel4life), blackZ = scale(blackpill), feministZ = scale(feminist))
+
+favstats(~ politic, forums, data = data_users)
+leveneTest(politic ~ as.factor(forums), data = data_users)$`Pr(>F)` #homogeneity met
+t.test(politic ~ forums, data = data_users, var.equal = TRUE) #no political orientation differences
+
+leveneTest(incel4life ~ as.factor(forums), data = data_users)$`Pr(>F)` #homogeneity met
+t.test(incel4life ~ forums, data = data_users, var.equal = TRUE) #t = -3.49, df = 133, p < 0.001
+favstats(~ incel4life, forums, data = data_users) #forum users had greater beliefs that they'd be incels for life
+cohens_d(incel4life ~ forums, data = data_users)
+incel4life.boot <- data_users %>%
+  filter(!is.na(incel4life), !is.na(forums)) #Boot was originally not working because of NAs and na.omit() wasn't working either
+set.seed(1993)
+incel4life.boot <-  Boot(lm(incel4life ~ forums, data = incel4life.boot), f = coef, R = 5000)
+confint(incel4life.boot, level = .95, type = "norm")
+
+favstats(~ blackpill, forums, data = data_users)
+leveneTest(blackpill ~ as.factor(forums), data = data_users)$`Pr(>F)` #homogeneity met
+t.test(blackpill ~ forums, data = data_users, var.equal = TRUE) #marginally significant
+
+favstats(~ feminist, forums, data = data_users)
+leveneTest(feminist ~ as.factor(forums), data = data_users)$`Pr(>F)` #homogeneity met
+t.test(feminist ~ forums, data = data_users, var.equal = TRUE) #marginally significant
+
 #Finding percentages of incels who use forums who agree these have helped their wellbeing
 
 data_forums <- data_incels %>%
@@ -889,7 +998,7 @@ data_forums$forum_cat <- factor(data_forums$forum_cat, levels = c('0', '1', '3')
 tblforum <- xtabs(~ incel + forum_cat, data = data_forums)
 rowforum <- prop.table(tblforum, 1)
 
-#Finding percentages of incels who believe, to some degree, in the blackpill vs not and in permanency of inceldom
+#Finding percentages of incels who believe, to some degree, in the blackpill and in permanency of inceldom
 
 data_incels <- data_incels %>%
   mutate(blackpill_cat = ifelse(blackpill == 5, 1, 
