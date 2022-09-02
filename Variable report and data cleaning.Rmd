@@ -34,14 +34,7 @@ data$sex <- as.numeric(plyr::revalue(as.character(data$sex), c("1" = "0", "2" = 
 
 * Age (*age*) 
 
-* Height (*height*), where participants could complete different boxes to specify their height in feet (*height_40_TEXT*) and inches (*height_41_TEXT*) or in centimetres (*height_42_TEXT*). A column *height_cm* was created transforming *height_40_TEXT* and *height_41_TEXT* into cms. Then, these values and those in the *height_42_TEXT* column were placed under a single column *height*
-
-```{r}
-data <- data %>%
-  mutate(height_cm = ((height_40_TEXT*30.48) + (height_41_TEXT*2.54)), 
-         height = ifelse(is.na(height_cm), height_42_TEXT, height_cm))
-
-```
+* Height (*height*), where participants could complete different boxes to specify their height in feet (*height_40_TEXT*) and inches (*height_41_TEXT*) or in centimetres (*height_42_TEXT*). 
 
 * Country (*country*), where 0 = United States, 1 = United Kingdom, 2 = Other (*country_2_TEXT* textbox), and 3 = Ireland. 
 
@@ -83,7 +76,8 @@ inceldom <- data %>%
 alpha(inceldom)$total$raw_alpha
 ```
 
-* Reasons for being single (*RBS_1* to *RBS_37*, adapted from Apostolou, 2019), participants could select multiple answers for being single, some of which were internal, and others external. An RBS_38 item allowed for an "other" option
+* Reasons for being single (*RBS_1* to *RBS_37*, adapted from Apostolou, 2019), participants could select multiple answers for being single, some of which were internal (e.g., "I am not good at flirting", "I fear rejection", "I am too short."), and others external (e.g., "other people are too picky", "potential partners are unwilling to commit to something long term", "online dating makes it too hard on the dating market.") An RBS_38 item allowed for an "other" option
+
   + Internal reasons(RBS_int): RBS_1 to RBS_23, RBS_25, RBS_27, RBS_29 to RBS_31
   + External reasons(RBS_ext): RBS_24, RBS_26, RBS_28, RBS_32 to RBS_37
   
@@ -95,19 +89,19 @@ data <- data %>%
            rowSums(na.rm = TRUE))
 ```
 
-* Last time having a romantic or sexual encounter (*hadsex*), where 1 = never had a romantic or sexual encounter, 2 = over3 years ago, 3 = over a year ago, 4 = over 6 months ago, 5 = within the last 6 months
+* Last time having a romantic or sexual encounter (*hadsex*), where 1 = never had a romantic or sexual encounter, 2 = over 3 years ago, 3 = over a year ago, 4 = over 6 months ago, 5 = within the last 6 months
 
 * Level of sexual experience (*sex_exp*) where 0 = none, 1 = some kissing, 2 = oral sex, 3 = sexual intercourse
 
 * Number of sexual partners and of romantic relationships (*sexpartners_5* and *_6*, respectively; just tick options on whether the participant has had either) where *sexpartners_5_TEXT* and *sexpartners_6_TEXT* provide the estimated actual numbers
 
-* Currently seeking a romantic relationship (*seekrelation*), where 1 = definitely yes, 2 = probably yes, 3 = might or might not, 4 = probably not, 5 = definitely not, 6 = no (because I am already in a commited relationship or married)
+* Currently seeking a romantic relationship (*seekrelation*), where 1 = definitely yes, 2 = probably yes, 3 = might or might not, 4 = probably not, 5 = definitely not, 6 = no (because I am already in a commited relationship or married). This item got recoded during analyses so higher self-reported scores would correspond with greater relationship seeking.
 
-* Porn weekly frequency (*porn*) where numbers indicate average weekly occassions of viewing porn (e.g., 4 would mean participant searched for porn an average of 4 times in a week)
+* Porn weekly frequency (*porn*) where numbers indicate average weekly occassions of viewing porn (e.g., 4 would mean participant searched for porn an average of 4 times in a week).
 
 * Feelings regarding polyamory (*poly*), scale ranging from -2(very negative) to 2(very positive), with 0 = neutral
 
-* Considering being a secondary partner to someone in a polyamorous relationship (*polypartner*), 5-point scale where 1 = definitely yes and 5 = definitely no, with 3 = not sure
+* Considering being a secondary partner to someone in a polyamorous relationship (*polypartner*), 5-point scale where 1 = definitely yes and 5 = definitely no, with 3 = not sure. 
 
 * Desire to have children (*kids*), where 1 = definitely yes (even if by myself or with a partner), 2 = probably yes (even if by myself or with a partner), 3 = not sure, 4 = probably no, 5 = definitely no, 6 = definitely yes (but only with a commited partner), 7 = probably yes (but only with a commited partner), 8 = already have children and do not want any more, 9 = no longer able to have children (due to age or health reasons)
 
@@ -139,13 +133,13 @@ data <- data %>%
 
 * Capacity in which participant identifies as an incel (*incelID*), where 1 = both offline and online, 2 = online only, 3 = offline only
 
-* Forum membership (*forums*) where 0 = no and 1 = yes, plus textbox for participants answering 1 to write which incel forums they participate in
+* Forum membership (*forums*) where 0 = no and 1 = yes, plus textbox for participants answering 1 to write which incel forums they participate in. 
 
-* Belief in being an incel for the rest of their life (*incel4life*), scale where 1 = definitely yes, and 5 = definitely  not
+* Belief in being an incel for the rest of their life (*incel4life*), scale where 1 = definitely yes, and 5 = definitely not. This item got recoded during analyses so higher self-reported scores would correspond with greater belief in permanency of inceldom.
 
-* Subscribing to the blackpill worldview (*blackpill*), scale where 1 = definitely yes, and 5 = definitely  not
+* Subscribing to the blackpill worldview (*blackpill*), scale where 1 = definitely yes, and 5 = definitely  not. This item got recoded during analyses so higher self-reported scores would correspond with greater belief inthe blackpill.
 
-* Perceived wellbeing improvement as a result of forum use (*forumWellbeing*, shown if *forums* = 1), scale where 1 = much better and 5 = much worse
+* Perceived wellbeing improvement as a result of forum use (*forumWellbeing*, shown if *forums* = 1), scale where 1 = much better and 5 = much worse. This item got recoded during analyses so higher self-reported scores would correspond with greater perceived wellbeing from forum use.
 
 * Changes in opinion of women since joining forums (*femopinion*, shown if *forums* = 1), where 1 = become much improved, and 5 = become much worse
 
@@ -168,7 +162,7 @@ data <- data %>%
 
 ## Tendencies for interpersonal victimhood
 
-Four factors, 6 items in each,, except for rumination with 4 items, 5-point Likert scale, greater scores correspond to greater TIV. Due to original variable names being inconvenient for writing code, these were renamed as specified below:
+Four factors, 6 items in each, except for rumination with 4 items, 5-point Likert scale, greater scores correspond to greater TIV. Due to original variable names being inconvenient for writing code, these were renamed as specified below:
 
 * Need for recognition (*TIV nfr_1* to *TIV nfr_6*, renamed to *NFR_1* to *NFR_6*, averaged construct *TIV_NFR*)
 * Moral elitism (*TIV ME_1* to *TIV ME_6*, renamed to *ME_1* to *ME_6*, averaged construct *TIV_ME*)

@@ -14,59 +14,1433 @@ output:
 library(readr)
 library(tidyverse)
 library(psych)
+library(mosaic)
+library(car)
+library(Hmisc)
+library(rstatix)
 library(lm.beta)
+library(ppcor)
+options(scipen = 999)
 
 data <- read_csv("C:/Users/Vania/Desktop/psychology of incels/incel cleaned data.csv")
 ```
 
 The hypotheses regarding mating-related variables were:
 
-* Incel men will report more external and internal reasons for being single
+* Incel men will report more external (and internal, exploratory) reasons for being single
 * Incel men will report lower minimum mate preferences than non-incel men (15 traits plus overall, use Bonferroni-Holm correction)
 * Incel men, more than non-incel men, will overestimate women’s minimum mate preferences and overemphasise the importance of physical-attractiveness
 
+Because in the mental health analyses incels were younger than non-incels were, brief linear regressions controlling for age are conducted throughout to see if results vary drastically. If this is not the case, t-tests will be reported throughout the manuscripts for greater parsimony.
+
+Additionally, to evaluate if effects might be severely affected by the non-single non-incels, we take a look at differences between single and non single non-incels, where, for *relation, 1 = single, 2 = dating around or seeing someone, 3 = in a committed relationship, 4 = married, 5 = divorced, 6 = widowed, 7 = in a consensually non-monogamous relationship.
+
+```{r}
+xtabs(~ incel + relation, data = data)
+data <- data %>%
+  mutate(relationship = ifelse(relation == 1, 1,
+                               ifelse(relation == 3 | relation == 4, 0, "")))
+data$relationship <- factor(data$relationship, levels = c("0", "1"),
+       labels = c("not single", "single"))
+
+xtabs(~ incel + relationship, data = data)
+```
+
 # Reasons for being single
+
+The hypothesis on external RBS was justified as incels' TIV making it more likely that they would blame external forces. There was no hypothesis for internal reasons, but as many of these relate to internal qualities (some fixable like being shy or lacking confidence and others non-fixable such as being too short or having disability, health, or fertility issues) that seem related to MVS, incels should be expected to show more internal RBS than non-incels as well. Because the mechanisms driving external and internal reasons differ (external are related to an external locus and thus TIV while internal reasons relate to MVS), controlling for these variables shouls also show TIV to have a greater effect on external reasons, and MVS on internal.
 
 ```{r}
 data_RBS <- data %>%
-  filter(sex == 0 & incel == 0 | sex == 0 & incel == 1) %>%
-  dplyr::select(., (c(incel, RBS_int, RBS_ext))) %>%
+  filter(sex == 0 & incel == 0 & relation == 1 | sex == 0 & incel == 1 & relation == 1) %>%
+  dplyr::select(., (c(incel, age, RBS_int, RBS_ext, TIV, MVS, relation))) %>%
   group_by(incel) %>%
-  mutate(RBS_intZ = scale(RBS_int), RBS_extZ = scale(RBS_ext)) %>%
+  mutate(RBS_intZ = scale(RBS_int), RBS_extZ = scale(RBS_ext),
+         ageZ = scale(age), TIVZ = scale(TIV), MVSZ = scale(MVS)) %>%
   ungroup()
+sum(data_RBS$incel == 1 & is.na(data_RBS$TIV) & is.na(data_RBS$MVS))
+sum(data_RBS$incel == 0 & is.na(data_RBS$TIV) & is.na(data_RBS$MVS))
+```
 
-range(data_RBS$RBS_intZ, na.rm = TRUE)
-sum(data_RBS$RBS_intZ > 3.30, na.rm = TRUE) #3 outliers
-range(data_RBS$RBS_extZ, na.rm = TRUE)
-sum(data_RBS$RBS_extZ > 3.30, na.rm = TRUE) #6 outliers
+## External reasons
 
-# Internal reasons
+```{r}
+range(data_RBS$RBS_extZ) #outliers on the positive end
+sum(data_RBS$RBS_extZ >= 3.30) #2 outliers
+data_RBSext <- data_RBS %>%
+  filter(RBS_extZ >= -3.30 & RBS_extZ <= 3.30)
+favstats(~ RBS_ext, incel, data = data_RBSext)
+
+(leveneTest(RBS_ext ~ as.factor(incel), data = data_RBSext))$`Pr(>F)` #homogeneity not met
+t.test(RBS_ext ~ incel, data = data_RBSext, var.equal = FALSE) 
+cohens_d(RBS_ext ~ incel, data = data_RBSext)
+
+set.seed(1993)
+RBSext.boot <- Boot(lm(RBS_ext ~ incel, data = data_RBSext), f = coef, R = 5000)
+confint(RBSext.boot, level = .95, type = "norm")
+
+hist(lm(RBS_ext ~ as.factor(incel), data = data_RBS)$residuals)
+qqPlot(lm(RBS_ext ~ as.factor(incel), data = data_RBS)$residuals)
+
+### controlling for variables ###
+favstats(~ RBS_ext, incel, data = na.omit(data_RBSext))
+rcorr(as.matrix(na.omit(data_RBSext[, c("RBS_ext", "incel", "age", "TIV", "MVS")]), type = "pearson"))
+ext.model <- lm(RBS_ext ~ incel + age + TIV + MVS, data = na.omit(data_RBSext))
+summary(ext.model)
+lm.beta(ext.model)
+set.seed(1993)
+ext.mod.boot <- Boot(lm(RBS_ext ~ incel + age + TIV + MVS, data = na.omit(data_RBSext)), f = coef, R = 5000)
+confint(ext.mod.boot, level = .95, type = "norm")
+
+sr2_ext <- spcor(na.omit(data_RBSext)[ , c("RBS_ext", "incel", "TIV", "MVS", "age")]) #first row are semi-partial r's, need to square them
+sr2_ext$estimate[1, c(2:5)]^2
+
+ext1 <- lm(RBS_ext ~ age + TIV + MVS, data = na.omit(data_RBSext))
+summary(ext1) #Radj square is .25 vs .35 in ext.model, thus incel self-identification adds about 10% of variance (which is what sr2 for incel is if rounded up)
+anova(ext1, ext.model)
+```
+
+## Internal reasons
+
+```{r}
+range(data_RBS$RBS_intZ) #outliers on the positive end
+sum(data_RBS$RBS_intZ >= 3.30) #1 outliers
 data_RBSint <- data_RBS %>%
-  filter(RBS_intZ >= -3.30 & RBS_intZ <= 3.30)
-
+  filter(RBS_intZ >= -3.30 & RBS_intZ <= 3.30,)
 favstats(~ RBS_int, incel, data = data_RBSint)
 
-(leveneTest(RBS_int ~ as.factor(incel), data = data_RBSint))$`Pr(>F)` #homogeneity not met
-t.test(RBS_int ~ incel, data = data_RBSint, var.equal = FALSE) #normal theory 95%CIs[.16, .54]
-
+(leveneTest(RBS_int ~ as.factor(incel), data = data_RBSint))$`Pr(>F)` #homogeneity met
+t.test(RBS_int ~ incel, data = data_RBSint, var.equal = TRUE) 
 cohens_d(RBS_int ~ incel, data = data_RBSint)
 
 set.seed(1993)
 RBSint.boot <- Boot(lm(RBS_int ~ incel, data = data_RBSint), f = coef, R = 5000)
 confint(RBSint.boot, level = .95, type = "norm")
 
-# External reasons
-data_RBSext <- data_RBS %>%
-  filter(RBS_extZ >= -3.30 & RBS_extZ <= 3.30)
+### controlling for variables ###
+favstats(~ RBS_int, incel, data = na.omit(data_RBSint))
+rcorr(as.matrix(na.omit(data_RBSint[, c("RBS_int", "incel", "age", "TIV", "MVS")]), type = "pearson")) #to compute power on G*Power
+int.model <- lm(RBS_int ~ incel + age + TIV + MVS, data = na.omit(data_RBSint))
+summary(int.model)
+lm.beta(int.model)
+set.seed(1993)
+int.mod.boot <- Boot(lm(RBS_int ~ incel + age + TIV + MVS, data = na.omit(data_RBSint)), f = coef, R = 5000)
+confint(int.mod.boot, level = .95, type = "norm")
 
-favstats(~ RBS_ext, incel, data = data_RBSext)
+sr2_int <- spcor(na.omit(data_RBSint)[ , c("RBS_int", "incel", "TIV", "MVS", "age")]) #first row are semi-partial r's, need to square them
+sr2_int$estimate[1, c(2:5)]^2
+```
 
-(leveneTest(RBS_ext ~ as.factor(incel), data = data_RBSext))$`Pr(>F)` #homogeneity not met
-t.test(RBS_ext ~ incel, data = data_RBSext, var.equal = FALSE) #normal theory 95%CIs[.16, .54]
+Incels reported more internal reasons for being single (*M* = 7.83, *SD* = 4.79, *n* = 151) than did non-incels (*M* = 3.10, *SD* = 4.22, *n* = 375) , *t*(248.66) = 10.60, *p* < .001, *d* = 1.05, *95%BootCI*[3.85, 5.61], 1 - $\beta$ = .99.
 
-cohens_d(RBS_ext ~ incel, data = data_RBSext)
+Incels reported more external reasons for being single (*M* = 2.12, *SD* = 1.84, *n* = 151) than did non-incels (*M* = .59, *SD* = 1.03, *n* = 372) , *t*(189.40) = 9.66, *p* < .001, *d* = 1.03, *95%BootCI*[1.23, 1.85], 1 - $\beta$ = .99.
+
+# Minimum mate preferences
+
+```{r}
+data_mmp <- data %>%
+  filter(sex == 0 & incel == 0 | sex == 0 & incel == 1) %>%
+  dplyr::select(., (c(incel, age, ownminprefer_1:ownminprefer_15, TIV, MVS))) %>%
+  group_by(incel) %>%
+  mutate( Z1 = scale(ownminprefer_1), Z2 = scale(ownminprefer_2), Z3 = scale(ownminprefer_3), Z4 = scale(ownminprefer_4), 
+          Z5 = scale(ownminprefer_5), Z6 = scale(ownminprefer_6), Z7 = scale(ownminprefer_7), Z8 = scale(ownminprefer_8), 
+          Z9 = scale(ownminprefer_9), Z10 = scale(ownminprefer_10), Z11 = scale(ownminprefer_11), Z12 = scale(ownminprefer_12),
+          Z13 = scale(ownminprefer_13), Z14 = scale(ownminprefer_14), Z15 = scale(ownminprefer_15),
+          TIVZ = scale(TIV), MVSZ = scale(MVS)
+    
+  ) %>%
+  ungroup() #n = 529
+
+########## Trait 1; facial attractiveness ##########
+
+data_mmp1 <- data_mmp %>%
+  filter(Z1 >= -3.30 & Z1 <= 3.30) #409
+
+favstats(~ ownminprefer_1, incel, data = data_mmp1)
+
+(leveneTest(ownminprefer_1 ~ as.factor(incel), data = data_mmp1))$`Pr(>F)` #homogeneity not met
+t.test(ownminprefer_1 ~ incel, data = data_mmp1, var.equal = FALSE) 
+p_mmp1 <- t.test(ownminprefer_1 ~ incel, data = data_mmp1, var.equal = FALSE)$p.value
+summary(lm(ownminprefer_1 ~ incel + age, data = data_mmp1)) 
+
+cohens_d(ownminprefer_1 ~ incel, data = data_mmp1)
 
 set.seed(1993)
-RBSext.boot <- Boot(lm(RBS_ext ~ incel, data = data_RBSext), f = coef, R = 5000)
-confint(RBSext.boot, level = .95, type = "norm")
+mmp1.boot <- Boot(lm(ownminprefer_1 ~ incel, data = data_mmp1), f = coef, R = 5000)
+confint(mmp1.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp1_control <- data_mmp %>%
+  filter(Z1 >= -3.30 & Z1 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp1 <- lm(ownminprefer_1 ~ incel + MVS + TIV , data = data_mmp1_control)
+summary(lm_mmp1)
+lm.beta(lm_mmp1)
+set.seed(1993)
+lm_mmp1.boot <- Boot(lm_mmp1, f = coef, R = 5000)
+confint(lm_mmp1.boot, level = .95, type = "norm")
 ```
+
+```{r}
+########## Trait 2; body attractiveness ##########
+
+data_mmp2 <- data_mmp %>%
+  filter(Z2 >= -3.30 & Z2 <= 3.30) #n = 408
+
+favstats(~ ownminprefer_2, incel, data = data_mmp2)
+
+(leveneTest(ownminprefer_2 ~ as.factor(incel), data = data_mmp2))$`Pr(>F)` #homogeneity not met
+t.test(ownminprefer_2 ~ incel, data = data_mmp2, var.equal = FALSE) 
+p_mmp2 <- t.test(ownminprefer_2 ~ incel, data = data_mmp2, var.equal = FALSE)$p.value
+summary(lm(ownminprefer_2 ~ incel + age, data = data_mmp2)) 
+
+cohens_d(ownminprefer_2 ~ incel, data = data_mmp2)
+
+set.seed(1993)
+mmp2.boot <- Boot(lm(ownminprefer_2 ~ incel, data = data_mmp2), f = coef, R = 5000)
+confint(mmp2.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp2_control <- data_mmp %>%
+  filter(Z2 >= -3.30 & Z2 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp2 <- lm(ownminprefer_2 ~ incel + MVS + TIV, data = data_mmp2_control)
+summary(lm_mmp2)
+lm.beta(lm_mmp2)
+set.seed(1993)
+lm_mmp2.boot <- Boot(lm_mmp2, f = coef, R = 5000)
+confint(lm_mmp2.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 3; fashion sense ##########
+
+data_mmp3 <- data_mmp %>%
+  filter(Z3 >= -3.30 & Z3 <= 3.30) #n = 413
+
+favstats(~ ownminprefer_3, incel, data = data_mmp3)
+
+(leveneTest(ownminprefer_3 ~ as.factor(incel), data = data_mmp3))$`Pr(>F)` #homogeneity met
+t.test(ownminprefer_3 ~ incel, data = data_mmp3, var.equal = TRUE) 
+p_mmp3 <- t.test(ownminprefer_3 ~ incel, data = data_mmp3, var.equal = TRUE)$p.value
+summary(lm(ownminprefer_3 ~ incel + age, data = data_mmp3))
+
+cohens_d(ownminprefer_3 ~ incel, data = data_mmp3)
+
+set.seed(1993)
+mmp3.boot <- Boot(lm(ownminprefer_3 ~ incel, data = data_mmp3), f = coef, R = 5000)
+confint(mmp3.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp3_control <- data_mmp %>%
+  filter(Z3 >= -3.30 & Z3 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp3 <- lm(ownminprefer_3 ~ incel + MVS + TIV , data = data_mmp3_control)
+summary(lm_mmp3)
+lm.beta(lm_mmp3)
+set.seed(1993)
+lm_mmp3.boot <- Boot(lm_mmp3, f = coef, R = 5000)
+confint(lm_mmp3.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 4; good job/financial prospects ##########
+
+data_mmp4 <- data_mmp %>%
+  filter(Z4 >= -3.30 & Z4 <= 3.30) #n = 413
+
+favstats(~ ownminprefer_4, incel, data = data_mmp4)
+
+(leveneTest(ownminprefer_4 ~ as.factor(incel), data = data_mmp4))$`Pr(>F)` #homogeneity met
+t.test(ownminprefer_4 ~ incel, data = data_mmp4, var.equal = TRUE) 
+p_mmp4 <- t.test(ownminprefer_4 ~ incel, data = data_mmp4, var.equal = TRUE)$p.value
+summary(lm(ownminprefer_4 ~ incel + age, data = data_mmp4))
+
+cohens_d(ownminprefer_4 ~ incel, data = data_mmp4)
+
+set.seed(1993)
+mmp4.boot <- Boot(lm(ownminprefer_4 ~ incel, data = data_mmp4), f = coef, R = 5000)
+confint(mmp4.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp4_control <- data_mmp %>%
+  filter(Z4 >= -3.30 & Z4 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp4 <- lm(ownminprefer_4 ~ incel + MVS + TIV , data = data_mmp4_control)
+summary(lm_mmp4)
+lm.beta(lm_mmp4)
+set.seed(1993)
+lm_mmp4.boot <- Boot(lm_mmp4, f = coef, R = 5000)
+confint(lm_mmp4.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 5; kind and understanding ##########
+
+data_mmp5 <- data_mmp %>%
+  filter(Z5 >= -3.30 & Z5 <= 3.30) #n = 408
+
+favstats(~ ownminprefer_5, incel, data = data_mmp5)
+
+(leveneTest(ownminprefer_5 ~ as.factor(incel), data = data_mmp5))$`Pr(>F)` #homogeneity not met
+t.test(ownminprefer_5 ~ incel, data = data_mmp5, var.equal = FALSE) 
+p_mmp5 <- t.test(ownminprefer_5 ~ incel, data = data_mmp5, var.equal = FALSE)$p.value
+summary(lm(ownminprefer_5 ~ incel + age, data = data_mmp5))
+
+cohens_d(ownminprefer_5 ~ incel, data = data_mmp5)
+
+set.seed(1993)
+mmp5.boot <- Boot(lm(ownminprefer_5 ~ incel, data = data_mmp5), f = coef, R = 5000)
+confint(mmp5.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp5_control <- data_mmp %>%
+  filter(Z5 >= -3.30 & Z5 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp5 <- lm(ownminprefer_5 ~ incel + MVS + TIV , data = data_mmp5_control)
+summary(lm_mmp5)
+lm.beta(lm_mmp5)
+set.seed(1993)
+lm_mmp5.boot <- Boot(lm_mmp5, f = coef, R = 5000)
+confint(lm_mmp5.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 6; loyal and dependable ##########
+
+data_mmp6 <- data_mmp %>%
+  filter(Z6 >= -3.30 & Z6 <= 3.30) #n = 406
+
+favstats(~ ownminprefer_6, incel, data = data_mmp6)
+
+(leveneTest(ownminprefer_6 ~ as.factor(incel), data = data_mmp6))$`Pr(>F)` #homogeneity not met
+t.test(ownminprefer_6 ~ incel, data = data_mmp6, var.equal = FALSE) 
+p_mmp6 <- t.test(ownminprefer_6 ~ incel, data = data_mmp6, var.equal = FALSE)$p.value
+summary(lm(ownminprefer_6 ~ incel + age, data = data_mmp6))
+
+cohens_d(ownminprefer_6 ~ incel, data = data_mmp6)
+
+set.seed(1993)
+mmp6.boot <- Boot(lm(ownminprefer_6 ~ incel, data = data_mmp6), f = coef, R = 5000)
+confint(mmp6.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp6_control <- data_mmp %>%
+  filter(Z6 >= -3.30 & Z6 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp6 <- lm(ownminprefer_6 ~ incel + MVS + TIV , data = data_mmp6_control)
+summary(lm_mmp6)
+lm.beta(lm_mmp6)
+set.seed(1993)
+lm_mmp6.boot <- Boot(lm_mmp6, f = coef, R = 5000)
+confint(lm_mmp6.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 7; emotional stability and maturity ##########
+
+data_mmp7 <- data_mmp %>%
+  filter(Z7 >= -3.30 & Z7 <= 3.30) #n = 407
+
+favstats(~ ownminprefer_7, incel, data = data_mmp7)
+
+(leveneTest(ownminprefer_7 ~ as.factor(incel), data = data_mmp7))$`Pr(>F)` #homogeneity not met
+t.test(ownminprefer_7 ~ incel, data = data_mmp7, var.equal = FALSE) 
+p_mmp7 <- t.test(ownminprefer_7 ~ incel, data = data_mmp7, var.equal = FALSE)$p.value
+summary(lm(ownminprefer_7 ~ incel + age, data = data_mmp7))
+
+cohens_d(ownminprefer_7 ~ incel, data = data_mmp7)
+
+set.seed(1993)
+mmp7.boot <- Boot(lm(ownminprefer_7 ~ incel, data = data_mmp7), f = coef, R = 5000)
+confint(mmp7.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp7_control <- data_mmp %>%
+  filter(Z7 >= -3.30 & Z7 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp7 <- lm(ownminprefer_7 ~ incel + MVS + TIV , data = data_mmp7_control)
+summary(lm_mmp7)
+lm.beta(lm_mmp7)
+set.seed(1993)
+lm_mmp7.boot <- Boot(lm_mmp7, f = coef, R = 5000)
+confint(lm_mmp7.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 8; sociability ##########
+
+data_mmp8 <- data_mmp %>%
+  filter(Z8 >= -3.30 & Z8 <= 3.30) #n = 413
+
+favstats(~ ownminprefer_8, incel, data = data_mmp8)
+
+(leveneTest(ownminprefer_8 ~ as.factor(incel), data = data_mmp8))$`Pr(>F)` #homogeneity not met
+t.test(ownminprefer_8 ~ incel, data = data_mmp8, var.equal = FALSE) 
+p_mmp8 <- t.test(ownminprefer_8 ~ incel, data = data_mmp8, var.equal = FALSE)$p.value
+summary(lm(ownminprefer_8 ~ incel + age, data = data_mmp8))
+
+cohens_d(ownminprefer_8 ~ incel, data = data_mmp8)
+
+set.seed(1993)
+mmp8.boot <- Boot(lm(ownminprefer_8 ~ incel, data = data_mmp8), f = coef, R = 5000)
+confint(mmp8.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp8_control <- data_mmp %>%
+  filter(Z8 >= -3.30 & Z8 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp8 <- lm(ownminprefer_8 ~ incel + MVS + TIV , data = data_mmp8_control)
+summary(lm_mmp8)
+lm.beta(lm_mmp8)
+set.seed(1993)
+lm_mmp8.boot <- Boot(lm_mmp8, f = coef, R = 5000)
+confint(lm_mmp8.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 9; exciting personality ##########
+
+data_mmp9 <- data_mmp %>%
+  filter(Z9 >= -3.30 & Z9 <= 3.30) #n = 413
+
+favstats(~ ownminprefer_9, incel, data = data_mmp9)
+
+(leveneTest(ownminprefer_9 ~ as.factor(incel), data = data_mmp9))$`Pr(>F)` #homogeneity not met
+t.test(ownminprefer_9 ~ incel, data = data_mmp9, var.equal = FALSE) 
+p_mmp9 <- t.test(ownminprefer_9 ~ incel, data = data_mmp9, var.equal = FALSE)$p.value
+summary(lm(ownminprefer_9 ~ incel + age, data = data_mmp9))
+
+cohens_d(ownminprefer_9 ~ incel, data = data_mmp9)
+
+set.seed(1993)
+mmp9.boot <- Boot(lm(ownminprefer_9 ~ incel, data = data_mmp9), f = coef, R = 5000)
+confint(mmp9.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp9_control <- data_mmp %>%
+  filter(Z9 >= -3.30 & Z9 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp9 <- lm(ownminprefer_9 ~ incel + MVS + TIV , data = data_mmp9_control)
+summary(lm_mmp9)
+lm.beta(lm_mmp9)
+set.seed(1993)
+lm_mmp9.boot <- Boot(lm_mmp9, f = coef, R = 5000)
+confint(lm_mmp9.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 10; sense of humour ##########
+
+data_mmp10 <- data_mmp %>%
+  filter(Z10 >= -3.30 & Z10 <= 3.30) #n = 413
+
+favstats(~ ownminprefer_10, incel, data = data_mmp10)
+
+(leveneTest(ownminprefer_10 ~ as.factor(incel), data = data_mmp10))$`Pr(>F)` #homogeneity not met
+t.test(ownminprefer_10 ~ incel, data = data_mmp10, var.equal = FALSE) 
+p_mmp10 <- t.test(ownminprefer_10 ~ incel, data = data_mmp10, var.equal = FALSE)$p.value
+summary(lm(ownminprefer_10 ~ incel + age, data = data_mmp10))
+
+cohens_d(ownminprefer_10 ~ incel, data = data_mmp10)
+
+set.seed(1993)
+mmp10.boot <- Boot(lm(ownminprefer_10 ~ incel, data = data_mmp10), f = coef, R = 5000)
+confint(mmp10.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp10_control <- data_mmp %>%
+  filter(Z10 >= -3.30 & Z10 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp10 <- lm(ownminprefer_10 ~ incel + MVS + TIV , data = data_mmp10_control)
+summary(lm_mmp10)
+lm.beta(lm_mmp10)
+set.seed(1993)
+lm_mmp10.boot <- Boot(lm_mmp10, f = coef, R = 5000)
+confint(lm_mmp10.boot, level = .95, type = "norm")
+```
+
+```{r}
+
+########## Trait 11; intelligence ##########
+
+data_mmp11 <- data_mmp %>%
+  filter(Z11 >= -3.30 & Z11 <= 3.30) #n = 406
+
+favstats(~ ownminprefer_11, incel, data = data_mmp11)
+
+(leveneTest(ownminprefer_11 ~ as.factor(incel), data = data_mmp11))$`Pr(>F)` #homogeneity not met
+t.test(ownminprefer_11 ~ incel, data = data_mmp11, var.equal = FALSE) 
+p_mmp11 <- t.test(ownminprefer_11 ~ incel, data = data_mmp11, var.equal = FALSE)$p.value
+summary(lm(ownminprefer_11 ~ incel + age, data = data_mmp11))
+
+cohens_d(ownminprefer_11 ~ incel, data = data_mmp11)
+
+set.seed(1993)
+mmp11.boot <- Boot(lm(ownminprefer_11 ~ incel, data = data_mmp11), f = coef, R = 5000)
+confint(mmp11.boot, level = .95, type = "norm")
+
+   ###controlling for TIV and perceived mate value###
+data_mmp11_control <- data_mmp %>%
+  filter(Z11 >= -3.30 & Z11 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp11 <- lm(ownminprefer_11 ~ incel + MVS + TIV , data = data_mmp11_control)
+summary(lm_mmp11)
+lm.beta(lm_mmp11)
+set.seed(1993)
+lm_mmp11.boot <- Boot(lm_mmp11, f = coef, R = 5000)
+confint(lm_mmp11.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 12; attractive political beliefs ##########
+
+data_mmp12 <- data_mmp %>%
+  filter(Z12 >= -3.30 & Z12 <= 3.30) #n = 413
+
+favstats(~ ownminprefer_12, incel, data = data_mmp12)
+
+(leveneTest(ownminprefer_12 ~ as.factor(incel), data = data_mmp12))$`Pr(>F)` #homogeneity met
+t.test(ownminprefer_12 ~ incel, data = data_mmp12, var.equal = TRUE) 
+p_mmp12 <- t.test(ownminprefer_12 ~ incel, data = data_mmp12, var.equal = TRUE)$p.value
+summary(lm(ownminprefer_12 ~ incel + age, data = data_mmp12))
+
+cohens_d(ownminprefer_12 ~ incel, data = data_mmp12)
+
+set.seed(1993)
+mmp12.boot <- Boot(lm(ownminprefer_12 ~ incel, data = data_mmp12), f = coef, R = 5000)
+confint(mmp12.boot, level = .95, type = "norm")
+
+ ###controlling for TIV and perceived mate value###
+data_mmp12_control <- data_mmp %>%
+  filter(Z12 >= -3.30 & Z12 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp12 <- lm(ownminprefer_12 ~ incel + MVS + TIV , data = data_mmp12_control)
+summary(lm_mmp12)
+lm.beta(lm_mmp12)
+set.seed(1993)
+lm_mmp12.boot <- Boot(lm_mmp12, f = coef, R = 5000)
+confint(lm_mmp12.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 13; similar interests ##########
+
+data_mmp13 <- data_mmp %>%
+  filter(Z13 >= -3.30 & Z13 <= 3.30) #n = 413
+
+favstats(~ ownminprefer_13, incel, data = data_mmp13)
+
+(leveneTest(ownminprefer_13 ~ as.factor(incel), data = data_mmp13))$`Pr(>F)` #homogeneity met
+t.test(ownminprefer_13 ~ incel, data = data_mmp13, var.equal = TRUE) 
+p_mmp13 <- t.test(ownminprefer_13 ~ incel, data = data_mmp13, var.equal = TRUE)$p.value
+summary(lm(ownminprefer_13 ~ incel + age, data = data_mmp13))
+
+cohens_d(ownminprefer_13 ~ incel, data = data_mmp13)
+
+set.seed(1993)
+mmp13.boot <- Boot(lm(ownminprefer_13 ~ incel, data = data_mmp13), f = coef, R = 5000)
+confint(mmp13.boot, level = .95, type = "norm")
+
+###controlling for TIV and perceived mate value###
+data_mmp13_control <- data_mmp %>%
+  filter(Z13 >= -3.30 & Z13 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp13 <- lm(ownminprefer_13 ~ incel + MVS + TIV , data = data_mmp13_control)
+summary(lm_mmp13)
+lm.beta(lm_mmp13)
+set.seed(1993)
+lm_mmp13.boot <- Boot(lm_mmp13, f = coef, R = 5000)
+confint(lm_mmp13.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 14; sexually skilful ##########
+
+data_mmp14 <- data_mmp %>%
+  filter(Z14 >= -3.30 & Z14 <= 3.30) #n = 413
+
+favstats(~ ownminprefer_14, incel, data = data_mmp14)
+
+(leveneTest(ownminprefer_14 ~ as.factor(incel), data = data_mmp14))$`Pr(>F)` #homogeneity met
+t.test(ownminprefer_14 ~ incel, data = data_mmp14, var.equal = TRUE) 
+p_mmp14 <- t.test(ownminprefer_14 ~ incel, data = data_mmp14, var.equal = TRUE)$p.value
+summary(lm(ownminprefer_14 ~ incel + age, data = data_mmp14))
+lm.beta(lm(ownminprefer_14 ~ incel + age, data = data_mmp14))
+
+cohens_d(ownminprefer_14 ~ incel, data = data_mmp14)
+
+set.seed(1993)
+mmp14.boot <- Boot(lm(ownminprefer_14 ~ incel, data = data_mmp14), f = coef, R = 5000)
+confint(mmp14.boot, level = .95, type = "norm")
+
+###controlling for TIV and perceived mate value###
+data_mmp14_control <- data_mmp %>%
+  filter(Z14 >= -3.30 & Z14 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp14 <- lm(ownminprefer_14 ~ incel + MVS + TIV , data = data_mmp14_control)
+summary(lm_mmp14)
+lm.beta(lm_mmp14)
+set.seed(1993)
+lm_mmp14.boot <- Boot(lm_mmp14, f = coef, R = 5000)
+confint(lm_mmp14.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Trait 15; good cook/homemaker ##########
+
+data_mmp15 <- data_mmp %>%
+  filter(Z15 >= -3.30 & Z15 <= 3.30) #n = 413
+
+favstats(~ ownminprefer_15, incel, data = data_mmp15)
+
+(leveneTest(ownminprefer_15 ~ as.factor(incel), data = data_mmp15))$`Pr(>F)` #homogeneity met
+t.test(ownminprefer_15 ~ incel, data = data_mmp15, var.equal = TRUE) 
+p_mmp15 <- t.test(ownminprefer_15 ~ incel, data = data_mmp15, var.equal = TRUE)$p.value
+summary(lm(ownminprefer_15 ~ incel + age, data = data_mmp15))
+
+cohens_d(ownminprefer_15 ~ incel, data = data_mmp15)
+
+set.seed(1993)
+mmp15.boot <- Boot(lm(ownminprefer_15 ~ incel, data = data_mmp15), f = coef, R = 5000)
+confint(mmp15.boot, level = .95, type = "norm")
+
+###controlling for TIV and perceived mate value###
+data_mmp15_control <- data_mmp %>%
+  filter(Z15 >= -3.30 & Z15 <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+lm_mmp15 <- lm(ownminprefer_15 ~ incel + MVS + TIV , data = data_mmp15_control)
+summary(lm_mmp15)
+lm.beta(lm_mmp15)
+set.seed(1993)
+lm_mmp15.boot <- Boot(lm_mmp15, f = coef, R = 5000)
+confint(lm_mmp15.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## TOTAL ##########
+
+data_tot <- data_mmp15 %>%
+  mutate(mmp_tot = dplyr::select(., c(ownminprefer_1:ownminprefer_15)) %>%
+           rowSums()) %>%
+  group_by(incel) %>%
+  mutate(Zmmp = scale(mmp_tot)) %>%
+  ungroup() %>%
+  filter(Zmmp >= -3.30 & Zmmp <= 3.30) #n = 409
+  
+favstats(~ mmp_tot, incel, data = data_tot)
+
+(leveneTest(mmp_tot ~ as.factor(incel), data = data_tot))$`Pr(>F)` #homogeneity not met
+t.test(mmp_tot ~ incel, data = data_tot, var.equal = FALSE) 
+p_mmp <- t.test(mmp_tot ~ incel, data = data_tot, var.equal = FALSE)$p.value
+summary(lm(mmp_tot ~ incel + age, data = data_tot))
+lm.beta(lm(mmp_tot ~ incel + age, data = data_tot))
+
+cohens_d(mmp_tot ~ incel, data = data_tot)
+
+set.seed(1993)
+tot.boot <- Boot(lm(mmp_tot ~ incel, data = data_tot), f = coef, R = 5000)
+confint(tot.boot, level = .95, type = "norm")
+
+###controlling for TIV and perceived mate value###
+data_mmp_control <- data_mmp %>%
+  mutate(mmp_tot = dplyr::select(., c(ownminprefer_1:ownminprefer_15)) %>%
+           rowSums()) %>%
+  group_by(incel) %>%
+  mutate(Zmmp = scale(mmp_tot)) %>%
+  ungroup() %>%
+  filter(Zmmp >= -3.30 & Zmmp <= 3.30,
+         TIVZ >= -3.30 & TIVZ <= 3.30,
+         MVSZ >= -3.30 & MVSZ <= 3.30)
+
+lm_mmp <- lm(mmp_tot ~ incel + MVS + TIV , data = data_mmp_control)
+summary(lm_mmp)
+lm.beta(lm_mmp)
+set.seed(1993)
+lm_mmp.boot <- Boot(lm_mmp, f = coef, R = 5000)
+confint(lm_mmp.boot, level = .95, type = "norm")
+```
+
+```{r}
+########## Adjusting p-values w/Holm-Bonferroni ##########
+p.values <- c(p_mmp1, p_mmp2, p_mmp3, p_mmp4, p_mmp5, p_mmp6, p_mmp7, p_mmp8, p_mmp9, p_mmp10, p_mmp11, p_mmp12, p_mmp13, p_mmp14, p_mmp15, p_mmp)
+p.adjust(p.values, method = "holm")
+
+########## Formal age comparison to confirm that the groups do in fact differ ##########
+
+(leveneTest(age ~ as.factor(incel), data = data_mmp))$`Pr(>F)`
+t.test(age ~ incel, data = data_mmp, var.equal = FALSE) 
+
+```
+
+# Overestimation of women's minimum mate preferences
+
+A new factor variable *participant* was created with 3 levels: 0 = *woman*, 1 = *male non-incel*, and 2 = *male incel*. Using this variable, 15 new variables were created for the 15 traits on the minimum mate preferences questionnaire. If the participant was a heterosexual female, the values for these new variables were her reported minimum mate preferences on the 15 traits (i.e., ownminprefer_1:ownminprefer_15). If the participant was a male, regardless of whether he was an incel or not, the values for these traits were what he believed or estimated to be the average woman's minimum mate preferences (i.e., otherminpref_1:otherminpref_15).
+
+```{r}
+data_prefs <- data %>%
+  filter(sex == 0 & incel == 0 | sex == 0 & incel == 1 | sex == 1 & incel == 0 & sexorien == 0) %>%
+  dplyr::select(., (c(sex, incel, ownminprefer_1:otherminpref_15))) %>%
+  mutate(participant = ifelse(sex == 1, 0,
+                              ifelse(incel == 1, 2, 1)))
+data_prefs$participant <- factor(data_prefs$participant, levels = c("0", "1", "2"),
+                                 labels = c("Female", "Male non-incel", "Male incel"))
+
+data_prefs <- data_prefs %>%
+  mutate(face = ifelse(participant == "Female", ownminprefer_1, otherminpref_1),
+         body = ifelse(participant == "Female", ownminprefer_2, otherminpref_2),
+         fashion = ifelse(participant == "Female", ownminprefer_3, otherminpref_3),
+         finances = ifelse(participant == "Female", ownminprefer_4, otherminpref_4),
+         kindness = ifelse(participant == "Female", ownminprefer_5, otherminpref_5),
+         loyalty = ifelse(participant == "Female", ownminprefer_6, otherminpref_6),
+         maturity = ifelse(participant == "Female", ownminprefer_7, otherminpref_7),
+         sociability = ifelse(participant == "Female", ownminprefer_8, otherminpref_8),
+         personality = ifelse(participant == "Female", ownminprefer_9, otherminpref_9),
+         humor = ifelse(participant == "Female", ownminprefer_10, otherminpref_10),
+         intelligence = ifelse(participant == "Female", ownminprefer_11, otherminpref_11),
+         politics = ifelse(participant == "Female", ownminprefer_12, otherminpref_12),
+         interests = ifelse(participant == "Female", ownminprefer_13, otherminpref_13),
+         sex_skill = ifelse(participant == "Female", ownminprefer_14, otherminpref_14),
+         homemaker = ifelse(participant == "Female", ownminprefer_15, otherminpref_15),
+         )
+```
+
+Once these new variables were created, data were screened for univariate outliers and then 15 one-way ANOVAs were ran with the *participant* variable as the IV and the 15 traits as outcomes. Were homogeneity of variance was not met, a Welch's ANOVA was used, as well as a Games-Howell correction for multiple comparisons instead of Tukey's HSD
+
+```{r}
+data_prefs <- data_prefs %>%
+  group_by(participant) %>%
+  mutate(Z1 = scale(face), Z2 = scale(body), Z3 = scale(fashion), Z4 = scale(finances), 
+        Z5 = scale(kindness), Z6 = scale(loyalty), Z7 = scale(maturity), Z8 = scale(sociability), 
+        Z9 = scale(personality), Z10 = scale(humor), Z11 = scale(intelligence), Z12 = scale(politics),
+        Z13 = scale(interests), Z14 = scale(sex_skill), Z15 = scale(homemaker)) %>%
+  ungroup()
+
+options("contrasts") #to see current contrasts and set ANOVA to type III SS for rstatix functions
+options(contrasts = c("contr.helmert", "contr.poly"))
+options("contrasts")
+
+##### Facial attractiveness #####
+
+data_face <- data_prefs %>%
+  filter(Z1 >= -3.30 & Z1 <= 3.30) 
+stats_face <- favstats(~ face, participant, data = data_face)
+stats_face
+leveneTest(face ~ participant, data = data_face) #homogeneity met
+anova_test(face ~ participant, data = data_face, type = 3)
+p_face <- anova_test(face ~ participant, data = data_face, type = 3)$p
+data_face %>% tukey_hsd(face ~ participant)
+
+##### Body attractiveness #####
+
+data_body <- data_prefs %>%
+  filter(Z2 >= -3.30 & Z2 <= 3.30) 
+stats_body <- favstats(~ body, participant, data = data_body)
+stats_body
+leveneTest(body ~ participant, data = data_body) #homogeneity met
+anova_test(body ~ participant, data = data_body, type = 3)
+p_body <- anova_test(body ~ participant, data = data_body, type = 3)$p
+data_body %>% tukey_hsd(body ~ participant)
+
+##### Fashion sense #####
+
+data_fashion <- data_prefs %>%
+  filter(Z3 >= -3.30 & Z3 <= 3.30) 
+stats_fashion <- favstats(~ fashion, participant, data = data_fashion)
+stats_fashion
+leveneTest(fashion ~ participant, data = data_fashion) #homogeneity met
+anova_test(fashion ~ participant, data = data_fashion, type = 3)
+p_fashion <- anova_test(fashion ~ participant, data = data_fashion, type = 3)$p
+data_fashion %>% tukey_hsd(fashion ~ participant)
+
+##### Good job/financial prospects #####
+
+data_finances <- data_prefs %>%
+  filter(Z4 >= -3.30 & Z4 <= 3.30) 
+stats_finances <- favstats(~ finances, participant, data = data_finances)
+stats_finances
+leveneTest(finances ~ participant, data = data_finances) #homogeneity NOT met
+welch_anova_test(finances ~ participant, data = data_finances)
+p_finances <- welch_anova_test(finances ~ participant, data = data_finances)$p
+data_finances %>% games_howell_test(finances ~ participant)
+
+##### Kind and understanding #####
+
+data_kindness <- data_prefs %>%
+  filter(Z5 >= -3.30 & Z5 <= 3.30) 
+stats_kindness <- favstats(~ kindness, participant, data = data_kindness)
+stats_kindness
+leveneTest(kindness ~ participant, data = data_kindness) #homogeneity NOT met
+welch_anova_test(kindness ~ participant, data = data_kindness)
+p_kindness <- welch_anova_test(kindness ~ participant, data = data_kindness)$p
+data_kindness %>% games_howell_test(kindness ~ participant)
+
+##### Loyal and dependable #####
+
+data_loyalty <- data_prefs %>%
+  filter(Z6 >= -3.30 & Z6 <= 3.30) 
+stats_loyalty <- favstats(~ loyalty, participant, data = data_loyalty)
+stats_loyalty
+leveneTest(loyalty ~ participant, data = data_loyalty) #homogeneity NOT met
+welch_anova_test(loyalty ~ participant, data = data_loyalty)
+p_loyalty <- welch_anova_test(loyalty ~ participant, data = data_loyalty)$p
+data_loyalty %>% games_howell_test(loyalty ~ participant)
+
+##### Emotional stability and maturity #####
+
+data_maturity <- data_prefs %>%
+  filter(Z7 >= -3.30 & Z7 <= 3.30) 
+stats_maturity <- favstats(~ maturity, participant, data = data_maturity)
+stats_maturity
+leveneTest(maturity ~ participant, data = data_maturity) #homogeneity NOT met
+welch_anova_test(maturity ~ participant, data = data_maturity)
+p_maturity <- welch_anova_test(maturity ~ participant, data = data_maturity)$p
+data_maturity %>% games_howell_test(maturity ~ participant)
+
+##### Sociability #####
+
+data_sociability <- data_prefs %>%
+  filter(Z8 >= -3.30 & Z8 <= 3.30) 
+stats_sociability <- favstats(~ sociability, participant, data = data_sociability)
+stats_sociability
+leveneTest(sociability ~ participant, data = data_sociability) #homogeneity NOT met
+welch_anova_test(sociability ~ participant, data = data_sociability)
+p_sociability <- welch_anova_test(sociability ~ participant, data = data_sociability)$p
+data_sociability %>% games_howell_test(sociability ~ participant)
+
+##### Exciting personality #####
+
+data_personality <- data_prefs %>%
+  filter(Z9 >= -3.30 & Z9 <= 3.30) 
+stats_personality <- favstats(~ personality, participant, data = data_personality)
+stats_personality
+leveneTest(personality ~ participant, data = data_personality) #homogeneity met (barely at .05)
+anova_test(personality ~ participant, data = data_personality, type = 3)
+p_personality <- anova_test(personality ~ participant, data = data_personality, type = 3)$p
+data_personality %>% tukey_hsd(personality ~ participant)
+
+##### Sense of humour #####
+
+data_humor <- data_prefs %>%
+  filter(Z10 >= -3.30 & Z10 <= 3.30) 
+stats_humor <- favstats(~ humor, participant, data = data_humor)
+stats_humor
+leveneTest(humor ~ participant, data = data_humor) #homogeneity NOT met
+welch_anova_test(humor ~ participant, data = data_humor)
+p_humor <- welch_anova_test(humor ~ participant, data = data_humor)$p
+data_humor %>% games_howell_test(humor ~ participant)
+
+##### Intelligence #####
+
+data_intelligence <- data_prefs %>%
+  filter(Z11 >= -3.30 & Z11 <= 3.30) 
+stats_intelligence <- favstats(~ intelligence, participant, data = data_intelligence)
+stats_intelligence
+leveneTest(intelligence ~ participant, data = data_intelligence) #homogeneity NOT met
+welch_anova_test(intelligence ~ participant, data = data_intelligence)
+p_intelligence <- welch_anova_test(intelligence ~ participant, data = data_intelligence)$p
+data_intelligence %>% games_howell_test(intelligence ~ participant)
+
+##### Atractive political beliefs (to the average woman) #####
+
+data_politics <- data_prefs %>%
+  filter(Z12 >= -3.30 & Z12 <= 3.30) 
+stats_politics <- favstats(~ politics, participant, data = data_politics)
+stats_politics
+leveneTest(politics ~ participant, data = data_politics) #homogeneity NOT met
+welch_anova_test(politics ~ participant, data = data_politics)
+p_politics <- welch_anova_test(politics ~ participant, data = data_politics)$p
+data_politics %>% games_howell_test(politics ~ participant)
+
+##### Similar interests #####
+
+data_interests <- data_prefs %>%
+  filter(Z13 >= -3.30 & Z13 <= 3.30) 
+stats_interests <- favstats(~ interests, participant, data = data_interests)
+stats_interests
+leveneTest(interests ~ participant, data = data_interests) #homogeneity NOT met
+welch_anova_test(interests ~ participant, data = data_interests)
+p_interests <- welch_anova_test(interests ~ participant, data = data_interests)$p
+data_interests %>% games_howell_test(interests ~ participant)
+
+##### Sexually skillful #####
+
+data_sex_skill <- data_prefs %>%
+  filter(Z14 >= -3.30 & Z14 <= 3.30) 
+stats_sex_skill <- favstats(~ sex_skill, participant, data = data_sex_skill)
+stats_sex_skill
+leveneTest(sex_skill ~ participant, data = data_sex_skill) #homogeneity met
+anova_test(sex_skill ~ participant, data = data_sex_skill, type = 3)
+p_sex_skill <- anova_test(sex_skill ~ participant, data = data_sex_skill, type = 3)$p
+data_sex_skill %>% tukey_hsd(sex_skill ~ participant)
+
+##### Good cook/homemaker #####
+
+data_homemaker <- data_prefs %>%
+  filter(Z15 >= -3.30 & Z15 <= 3.30) 
+stats_homemaker <- favstats(~ homemaker, participant, data = data_homemaker)
+stats_homemaker
+leveneTest(homemaker ~ participant, data = data_homemaker) #homogeneity met
+anova_test(homemaker ~ participant, data = data_homemaker, type = 3)
+p_homemaker <- anova_test(homemaker ~ participant, data = data_homemaker, type = 3)$p
+data_homemaker %>% tukey_hsd(homemaker ~ participant)
+
+##### Total #####
+
+data_totprefs <- data_prefs %>%
+  mutate(totprefs = dplyr::select(., c(face:homemaker)) %>%
+           rowSums()) %>%
+  group_by(participant) %>%
+  mutate(Ztotprefs = scale(totprefs)) %>%
+  ungroup() %>%
+  filter(Ztotprefs >= -3.30 & Ztotprefs <= 3.30) 
+  
+stats_totprefs <- favstats(~ totprefs, participant, data = data_totprefs)
+stats_totprefs
+leveneTest(totprefs ~ participant, data = data_totprefs) #homogeneity NOT met
+welch_anova_test(totprefs ~ participant, data = data_totprefs)
+p_totprefs <- welch_anova_test(totprefs ~ participant, data = data_totprefs)$p
+data_totprefs %>% games_howell_test(totprefs ~ participant)
+
+########## Adjusting p-values w/Holm-Bonferroni ##########
+p.values <- c(p_face, p_body, p_fashion, p_finances, p_kindness, p_loyalty, p_maturity, p_sociability, p_personality, p_humor, p_intelligence, p_politics, p_interests, p_sex_skill, p_homemaker, p_totprefs)
+p.adjust(p.values, method = "holm")
+
+```
+
+Regarding power, given unbalanced samples, methods like G*Power would not accurately calculate power. A few options found on stats forums included simulating power (assuming the standard deviations are the same, though it is unclear if this simply means assuming homogeneity is met and SDs are not significantly different). Separately, a package was found that is supposed to be able to compute power for unbalanced samples. Both methods are used and applied to the 15 minimum mate preferences traits.
+
+Homogeneity of variances was NOT met for financial prospects, kind and understanding, loyal and dependable, emotional stability and maturity, sociability, humour, intelligence, political beliefs, similar interests,
+
+Might be worth discussing effect sizes, as eta squared and partial eta squared have been shown to be biased, especially when samples are small or homogeneity is not met (both often cases with our data). Omega squared and partial omega seem to hold better should effect sizes for the ANOVAs be of interest, though there are no packages or functions that can compute these. Alternatively, it may be of interest to compute Cohen's d comparing incels and non-incels, and, more importantly, incels and hetero females.
+
+```{r}
+########## Facial attractiveness ##########
+
+#Simulating power
+n_sim <- 10000
+sampsi <- c(stats_face$n[1], stats_face$n[2], stats_face$n[3])
+mus <- c(stats_face$mean[1], stats_face$mean[2], stats_face$mean[3])
+sds <- c(c(stats_face$sd[1], stats_face$sd[2], stats_face$sd[3]))
+p_vals <- NULL
+set.seed(1993)
+for(i in 1:n_sim) {
+  dat_tmp <- data.frame(
+    y = rnorm(sum(sampsi), mean = rep(mus, times = sampsi), sd = rep(sds, times = sampsi))
+    , group = factor(rep(seq_along(mus), times = sampsi))
+  )
+  mod <- anova(lm(y~group, data = dat_tmp))
+  p_vals[i] <-  mod$`Pr(>F)`[1]
+  rm(dat_tmp)
+}
+cat("Simulated power is:", mean(p_vals <= 0.05)*100, "%")
+
+#Using the power package
+install.packages("remotes")
+remotes::install_github("gilberto-sassi/power")
+library(power)
+pwr_anova_unbalanced(c(stats_face$mean[1], stats_face$mean[2], stats_face$mean[3]), 
+                     c(stats_face$n[1], stats_face$n[2], stats_face$n[3]), 
+                     mean(data_face$face, na.rm = TRUE), sd(data_face$face, na.rm = TRUE), sig_level = 0.05)
+
+```
+
+Compare women's reported preferences to their estimated preferences of other women?
+```{r}
+data_women <- data %>%
+  filter(sex == 1 & incel == 0 & sexorien == 0) %>%
+  dplyr::select(., (c(age, ownminprefer_1:otherminpref_15)))
+
+table_women <- matrix(ncol = 15, nrow = 4)
+table_women[1,] <- as.numeric(data_women %>% dplyr::select(., (c(ownminprefer_1:ownminprefer_15))) %>% summarise_if(is.numeric, mean, na.rm = TRUE))
+table_women[2,] <- as.numeric(data_women %>% dplyr::select(., (c(otherminpref_1:otherminpref_15))) %>% summarise_if(is.numeric, mean, na.rm = TRUE))
+table_women[3,] <- c(t.test(data_women$ownminprefer_1, data_women$otherminpref_1, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_2, data_women$otherminpref_2, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_3, data_women$otherminpref_3, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_4, data_women$otherminpref_4, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_5, data_women$otherminpref_5, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_6, data_women$otherminpref_6, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_7, data_women$otherminpref_7, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_8, data_women$otherminpref_8, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_9, data_women$otherminpref_9, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_10, data_women$otherminpref_10, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_11, data_women$otherminpref_11, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_12, data_women$otherminpref_12, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_13, data_women$otherminpref_13, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_14, data_women$otherminpref_14, paired = TRUE)$p.value,
+            t.test(data_women$ownminprefer_15, data_women$otherminpref_15, paired = TRUE)$p.value)
+table_women[4,] <- p.adjust(as.numeric(table_women[3,]), method = "holm")
+table_women <- as.table(t(table_women))
+rownames(table_women) <- c("Facial attractiveness", "Body attractiveness", "Fashion sense", "Good job", "Kind and understanding", "Loyal and dependable", "Emotional stability", "Sociability", "Exciting personality", "Sense of humour", "Intelligence", "Attractive political beliefs", "Similar interests","Sexually skilful", "Good cook/homemaker")
+colnames(table_women) <- c("Own preferences", "Estimated preferences", "p-value", "adjusted p-value")
+round(table_women, digits = 4)
+```
+
+# Exploratory questions
+
+```{r}
+data_exp <- data %>%
+  filter(sex == 0 & incel == 0 | sex == 0 & incel == 1) %>%
+  dplyr::select(., (c(incel, soiatt, forums, feminist, sexpartners_5_TEXT, sexpartners_6_TEXT, poly, polypartner,
+                      forcesex, femopinion))) %>%
+  mutate(feminist = 6 - feminist, polypartner = 6 - polypartner,
+         femopinion = 6 - femopinion) %>% #recode so greater scores = greater agreement
+  group_by(incel) %>%
+  mutate(soiattZ = scale(soiatt), feministZ = scale(feminist), polyZ = scale(poly), polypartnerZ = scale(polypartner), 
+         forcesexZ = scale(forcesex), femopinionZ = scale(femopinion)) %>%
+  ungroup()
+```
+
+In the mental health code, some mating-related exploratory findings included:
+
+1) Incels (*M* = 3.33, *SD* =	1.44, *n* = 136) scored higher on relationship seeking than non incels (*M* = 2.77, *SD* = 1.32, *n* = 168), *t*(302) = 3.55, *p* < .001, *d* = .41, *95%BootCI* = [0.25, 0.88]
+
+2) Incels (*M* = 2.71, *SD* = 1.68, *n* =	122) were more likely to have considered cosmetic surgery than non-incels (*M* = 2.03, *SD* = 1.36, *n* = 300), *t*(188.83) = 3.98, *p* < 0.001, *d* = .45, *95%BootCI* = [.30, .99]. Here this seems to be the case even after controlling for MVS.
+
+```{r}
+data_surgery <- data %>%
+  filter(sex == 0 & incel == 0 | sex == 0 & incel == 1) %>%
+  dplyr::select(., (c(incel, surgery, TIV, MVS))) %>%
+  mutate(surgery = 6 - surgery) %>% #recode so greater scores = greater desire to get surgery
+  group_by(incel) %>%
+  mutate(surgeryZ = scale(surgery)) %>%
+  ungroup() %>%
+  filter(surgeryZ >= -3.30 & surgeryZ <= 3.30)
+
+favstats(~ surgery, incel, data = data_surgery)
+
+leveneTest(surgery ~ as.factor(incel), data = data_surgery)$`Pr(>F)` #homogeneity not met
+t.test(surgery ~ incel, data = data_surgery, var.equal = FALSE)
+cohens_d(surgery ~ incel, data = data_surgery)
+
+set.seed(1993)
+surgery.boot <- Boot(lm(surgery ~ as.factor(incel), data = na.omit(data_surgery)), f = coef, R = 5000)
+confint(surgery.boot, level = .95, type = "norm")
+
+summary(lm(surgery ~ incel + MVS, data = data_surgery))
+set.seed(1993)
+confint(Boot(lm(surgery ~ incel + MVS, data = na.omit(data_surgery)), f = coef, R = 5000), level = .95, type = "norm")
+favstats(~ surgery, incel, data = na.omit(data_surgery))
+rcorr(as.matrix(na.omit(data_surgery[, c("surgery", "incel", "MVS")]), type = "pearson"))
+```
+
+3) Forum-using incels perceived their perception of women to have become worse (*M* = 2.58, *SD* = 0.72), as opposed to remaining the same ($\mu$ = 3), *t*(37) = -3.60, *p* < 0.001
+
+```{r}
+range(data_exp$femopinionZ, na.rm = TRUE) #no outliers
+favstats(~ femopinion, data = data_exp)
+t.test(data_exp$femopinion, mu = 3)
+(favstats(~ femopinion, data = data_exp)$mean - 3)/favstats(~ femopinion, data = data_exp)$sd
+```
+
+4) Forum-using incels (*M* = 3.82, *SD* = 0.90, *n* = 40) scored higher on the belief they would remain incels for life compared to non-forum-using incels (*M* = 3.19, *SD* = 0.99, *n* = 95), *t*(133) = 3.49, *p* < .001, *95%BootCI* = [.30, .98]
+
+Still not explored in the mental health code:
+
+##Height 
+
+Are incels shorter in height than non-incels? (Because height is a trait that matters for many women. Also control for age since incels are younger, although one would assume since our sample is >18 most would be close to their max height)
+
+Because participants could provide their height in either imperial or metric, I created a new column where all heights are in metric. The feet and inches columns (height_40_TEXT and height_41_TEXT) can be transformed into centimeters and added, but if a participant left the inches column empty (e.g., someone who is exactly 6 ft and 0 inches tall but left the inches column empty) then the sum of the feet and inches columns will be NA. We can replace NAs with 0s (height_ft and height_in) and then transform the columns to centimeters and add them up (height_imp_to_met). Some participants provided their height in all three ways (e.g., a participant who was 190.5cm also said they were 6.25ft or 75 inches). For such participants, adding the feet and inches columns gave near impossible heights. So, it is more practical to use the metric column for anyone who filled it, and, for those who did not, use the values in the height_imp_to_met. 
+
+After doing this, if we order the data frame by height_cm we see some participants who did not provide any height data in any form and thus their height_cm value is 0. These need to be removed. There are also a few more problematic participants. The ninth participant gave height as 5 ft and 4 inches, but also as 100cm. It is more likely that this person actually is 5ft 4 inches and got confused providing the metric, than it is for this participant to really be 1cm or even 1 meter tall. Same for participants 11 and 12. Participant 10 provided their height in both imperial and metric, but for metric they used 1.83 instead of 183. All in all these changes can be addressed one by one.
+
+```{r}
+data_height <- data %>%
+   filter(sex == 0 & incel == 0 | sex == 0 & incel == 1) %>%
+  dplyr::select(., (c(incel, age,height_40_TEXT, height_41_TEXT, height_42_TEXT)))%>%
+  mutate(height_ft = ifelse(is.na(height_40_TEXT), 0, height_40_TEXT),
+         height_in = ifelse(is.na(height_41_TEXT), 0, height_41_TEXT),
+         height_imp_to_met = (height_ft*30.48) + (height_in*2.54),
+         height_cm = ifelse(is.na(height_42_TEXT)| height_42_TEXT == 0, height_imp_to_met, height_42_TEXT))
+
+
+data_height <- data_height[order(data_height$height_cm), ]
+data_height
+data_height[9, 9] <- (5*30.48) + (4*2.54)
+data_height[10, 9] <- 183
+data_height[11, 9] <- (5*30.48) + (4*2.54)
+data_height[12, 9] <- (6*30.48) + (4*2.54)
+
+data_height <- data_height %>%
+  filter(height_cm > 0) %>%
+  group_by(incel) %>%
+  mutate(heightZ = scale(height_cm)) %>%
+  ungroup
+
+range(data_height$heightZ) #no outliers
+
+favstats(~ height_cm, incel, data = data_height)
+
+(leveneTest(height_cm ~ as.factor(incel), data = data_height))$`Pr(>F)` #close to not met, p = .059
+t.test(height_cm ~ incel, data = data_height, var.equal = TRUE) #t only differs from 4.27 to 4.00 if using equal variances vs not
+cohens_d(height_cm ~ incel, data = data_height)
+
+summary(lm(height_cm ~ incel + age, data = data_height)) #age completely unrelated to height
+
+set.seed(1993)
+height.boot <- Boot(lm(height_cm ~ incel, data = data_height), f = coef, R = 5000)
+confint(height.boot, level = .95, type = "norm")
+
+```
+
+## Feminism
+
+1)Are incels less feminist than non-incels?
+
+```{r}
+range(data_exp$feministZ, na.rm = TRUE) #no outliers
+favstats(~ feminist, incel, data = data_exp)
+(leveneTest(feminist~ as.factor(incel), data = data_exp))$`Pr(>F)` #not met
+t.test(feminist ~ incel, data = data_exp, var.equal = FALSE) 
+cohens_d(feminist ~ incel, data = data_exp)
+
+boot.data <- data_exp %>%
+  filter(feminist > 0)
+set.seed(1993)
+confint(Boot(lm(feminist ~ incel, data = boot.data), f = coef, R = 5000), level = .95, type = "norm")
+```
+
+2) Do incels who use forums score lower on feminism than those who do not use forums?
+
+```{r}
+data_forums <- data_exp %>%
+  filter(incel == 1) %>%
+  dplyr::select( ,c(forums, feminist, sexpartners_5_TEXT, sexpartners_6_TEXT, poly, polypartner, forcesex)) %>%
+  group_by(forums) %>%
+  mutate(feministZ = scale(feminist), sexpartnersZ = scale(sexpartners_5_TEXT), rompartnersZ = scale(sexpartners_6_TEXT),
+         polyZ = scale(poly), polypartnerZ = scale(polypartner), forcesexZ = scale(forcesex)) %>%
+  ungroup()
+
+range(data_forums$feministZ, na.rm = TRUE) #no outliers
+
+favstats(~ feminist, forums, data = data_forums)
+(leveneTest(feminist~ as.factor(forums), data = data_forums))$`Pr(>F)` 
+t.test(feminist ~ forums, data = data_forums, var.equal = TRUE) 
+cohens_d(feminist ~ forums, data = data_forums)
+
+feminist.boot.data <- data_forums %>%
+  filter(!is.na(feminist) & !is.na(forums))
+set.seed(1993)
+confint(Boot(lm(feminist ~ forums, data = feminist.boot.data), f = coef, R = 5000), level = .95, type = "norm")
+```
+
+3) How do incel and non-incel men compare to women in self-reported feminism? (just for the lolz)
+
+```{r}
+data_feminism <- data %>%
+  filter(sex == 0 & incel == 0 | sex == 0 & incel == 1 | sex == 1 & incel == 0) %>%
+  dplyr::select(., (c(sex, incel, feminist))) %>%
+  mutate(participant = ifelse(sex == 1, 0,
+                              ifelse(incel == 1, 2, 1)),
+         feminist = 6 - feminist) %>%
+  group_by(participant) %>%
+  mutate(feministZ = scale(feminist)) %>%
+  ungroup
+
+data_feminism$participant <- factor(data_feminism$participant, levels = c("0", "1", "2"),
+                                 labels = c("Female", "Male non-incel", "Male incel"))
+
+range(data_feminism$feministZ, na.rm = TRUE) #no outliers
+favstats(~ feminist, participant, data = data_feminism)
+leveneTest(feminist ~ participant, data = data_feminism) #homogeneity NOT met
+welch_anova_test(feminist ~ participant, data = data_feminism)
+data_feminism %>% games_howell_test(feminist ~ participant)
+```
+
+## Views on polyamory
+
+1) Do incels have different attitudes (be them more positive or negative) regarding polyamory?
+
+```{r}
+range(data_exp$polyZ, na.rm = TRUE) #no outliers
+
+favstats(~ poly, incel, data = data_exp)
+(leveneTest(poly ~ as.factor(incel), data = data_exp))$`Pr(>F)` 
+t.test(poly ~ incel, data = data_exp, var.equal = TRUE) 
+cohens_d(poly ~ incel, data = data_exp)
+
+poly.boot.data <- data_exp %>%
+  filter(!is.na(poly))
+set.seed(1993)
+confint(Boot(lm(poly ~ incel, data = poly.boot.data), f = coef, R = 5000), level = .95, type = "norm")
+```
+
+2) Would incels be more likely to consider being a secondary partner in a poly relationship?
+
+```{r}
+range(data_exp$polypartnerZ, na.rm = TRUE) #no outliers
+
+favstats(~ polypartner, incel, data = data_exp)
+(leveneTest(polypartner ~ as.factor(incel), data = data_exp))$`Pr(>F)` 
+t.test(polypartner ~ incel, data = data_exp, var.equal = TRUE) 
+cohens_d(polypartner ~ incel, data = data_exp)
+
+polypartner.boot.data <- data_exp %>%
+  filter(!is.na(polypartner))
+set.seed(1993)
+confint(Boot(lm(polypartner ~ incel, data = polypartner.boot.data), f = coef, R = 5000), level = .95, type = "norm")
+```
+
+## SOI attitudes and sexual behaviours
+
+1) Are there SOI att differences?
+
+```{r}
+range(data_exp$soiattZ, na.rm = TRUE) #no outliers
+favstats(~ soiatt, incel, data = data_exp)
+(leveneTest(soiatt~ as.factor(incel), data = data_exp))$`Pr(>F)` #met
+t.test(soiatt ~ incel, data = data_exp, var.equal = TRUE) 
+cohens_d(soiatt ~ incel, data = data_exp)
+
+set.seed(1993)
+confint(Boot(lm(soiatt ~ incel, data = na.omit(data_exp)), f = coef, R = 5000), level = .95, type = "norm")
+```
+
+Mate preferences relate to sociosexual attitudes (Penke & Asendorpf, 2008) so if there are SOI att differences, these might affect results in group differences in minimum mate preferences and should be used as a control variable
+
+2) Group differences in past sexual and romantic partners (sexpartners_5_TEXT and sexpartners_6_TEXT)
+
+```{r}
+data_exp <- data_exp[-1, ]
+
+range(data_exp$sexpartners_5_TEXT, na.rm = TRUE)
+sum(data_exp$sexpartners_5_TEXT > 99, na.rm = TRUE)
+
+#Recoding answers with the SOI-R scale
+data_exp <- data_exp %>%
+  mutate(sexbh = ifelse(sexpartners_5_TEXT == 0, 1,
+                        ifelse(sexpartners_5_TEXT == 1, 2,
+                               ifelse(sexpartners_5_TEXT == 2, 3,
+                                      ifelse(sexpartners_5_TEXT == 3, 4,
+                                             ifelse(sexpartners_5_TEXT == 4, 5,
+                                                    ifelse(sexpartners_5_TEXT == 5 | sexpartners_5_TEXT == 6, 6,
+                                                           ifelse(sexpartners_5_TEXT >= 7 & sexpartners_5_TEXT <= 9, 7,
+                                                                  ifelse(sexpartners_5_TEXT >= 10 & sexpartners_5_TEXT <= 19, 8, 9)))))))))
+
+favstats(~ sexbh, incel, data = data_exp)
+(leveneTest(sexbh ~ as.factor(incel), data = data_exp))$`Pr(>F)` 
+t.test(sexbh ~ incel, data = data_exp, var.equal = FALSE) 
+cohens_d(sexbh ~ incel, data = data_exp)
+
+set.seed(1993)
+confint(Boot(lm(sexbh ~ incel, data = na.omit(data_exp)), f = coef, R = 5000), level = .95, type = "norm")
+
+#Analyses capping at 100 and remocing outliers
+data_sexpartners <- data_exp %>%
+  filter(sexpartners_5_TEXT < 100) %>%
+  group_by(incel) %>%
+  mutate(sexpartnersZ = scale(sexpartners_5_TEXT))
+
+range(data_sexpartners$sexpartnersZ, na.rm = TRUE)
+sum(data_sexpartners$sexpartnersZ >= 3.30, na.rm = TRUE) #10 outliers
+
+data_sexpartners <- data_sexpartners %>%
+  filter(sexpartnersZ >= -3.30 & sexpartnersZ <= 3.30)
+
+favstats(~ sexpartners_5_TEXT, incel, data = data_sexpartners)
+(leveneTest(sexpartners_5_TEXT ~ as.factor(incel), data = data_sexpartners))$`Pr(>F)` 
+t.test(sexpartners_5_TEXT ~ incel, data = data_sexpartners, var.equal = FALSE) 
+cohens_d(sexpartners_5_TEXT ~ incel, data = data_sexpartners)
+
+set.seed(1993)
+confint(Boot(lm(sexpartners_5_TEXT ~ incel, data = data_sexpartners), f = coef, R = 5000), level = .95, type = "norm")
+  
+```
+
+```{r}
+range(data_exp$sexpartners_6_TEXT, na.rm = TRUE) #max claimed romantic partners is 36
+sum(data_exp$sexpartners_6_TEXT > 99, na.rm = TRUE)
+
+data_rompartners <- data_exp %>%
+  group_by(incel) %>%
+  mutate(rompartnersZ = scale(sexpartners_6_TEXT))
+
+range(data_rompartners$rompartnersZ, na.rm = TRUE)
+sum(data_rompartners$rompartnersZ >= 3.30, na.rm = TRUE) #7 outliers
+
+data_rompartners <- data_rompartners %>%
+  filter(rompartnersZ >= -3.30 & rompartnersZ <= 3.30)
+
+favstats(~ sexpartners_6_TEXT, incel, data = data_rompartners)
+(leveneTest(sexpartners_6_TEXT ~ as.factor(incel), data = data_rompartners))$`Pr(>F)` 
+t.test(sexpartners_6_TEXT ~ incel, data = data_rompartners, var.equal = FALSE) 
+cohens_d(sexpartners_6_TEXT ~ incel, data = data_rompartners)
+
+set.seed(1993)
+confint(Boot(lm(sexpartners_6_TEXT ~ incel, data = data_rompartners), f = coef, R = 5000), level = .95, type = "norm")
+  
+```
+
+3) Group differences in willingness to engage in forces sex if they can get away with it?
+
+```{r}
+range(data_exp$forcesexZ, na.rm = TRUE) #positive outliers
+
+data_force <- data_exp %>%
+  filter(forcesexZ <= 3.30)
+
+favstats(~ forcesex, incel, data = data_force)
+(leveneTest(forcesex ~ as.factor(incel), data = data_force))$`Pr(>F)` #not met
+t.test(forcesex ~ incel, data = data_force, var.equal = FALSE) 
+cohens_d(forcesex ~ incel, data = data_force)
+
+set.seed(1993)
+confint(Boot(lm(forcesex ~ incel, data = data_force), f = coef, R = 5000), level = .95, type = "norm")
+```
+
+
+# Comparing single and non-single incels
+
+```{r}
+singles <- data %>%
+  mutate(participant = ifelse(incel == 0 & relationship == "not single", 0,
+                              ifelse(incel == 0 & relationship == "single", 1, 
+                                     ifelse(incel == 1 & relationship == "single", 2, ""))))
+```
+
+## Running t-tests for all previous IVs with non-incels alone
+
+```{r}
+nons <- singles %>%
+  filter(participant == 0 & sex == 0 | participant == 1 & sex == 0)
+
+# SOI desire
+favstats(~ soides, participant, data = nons)
+
+(leveneTest(soides ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(soides ~ as.factor(participant), data = nons, var.equal = TRUE)
+
+# TIV_NFR
+favstats(~ TIV_NFR, participant, data = nons)
+
+(leveneTest(TIV_NFR ~ as.factor(participant), data = nons))$`Pr(>F)`
+t.test(TIV_NFR ~ as.factor(participant), data = nons, var.equal = TRUE)
+
+# TIV_ME
+favstats(~ TIV_ME, participant, data = nons)
+
+(leveneTest(TIV_ME ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(TIV_ME ~ participant, data = nons, var.equal = TRUE)
+
+cohens_d(TIV_ME ~ participant, data = nons)
+
+MEdata <- nons %>% #need to create dataset of only variables of interest so the na.omit() function for bootstrapping works properly
+  dplyr::select(, c(TIV_ME, participant))
+
+set.seed(1993)
+confint(Boot(lm(TIV_ME ~ as.factor(participant), data = na.omit(MEdata)), f = coef, R = 5000), level = .95, type = "norm")
+
+# TIV_LoE
+favstats(~ TIV_LoE, participant, data = nons)
+
+(leveneTest(TIV_LoE ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(TIV_LoE ~ participant, data = nons, var.equal = FALSE)
+
+# TIV_RUM
+favstats(~ TIV_RUM, participant, data = nons)
+
+(leveneTest(TIV_RUM ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(TIV_RUM ~ participant, data = nons, var.equal = TRUE)
+cohens_d(TIV_RUM ~ participant, data = nons)
+
+RUMdata <- nons %>% 
+  dplyr::select(, c(TIV_RUM, participant))
+
+set.seed(1993)
+confint(Boot(lm(TIV_RUM ~ as.factor(participant), data = na.omit(RUMdata)), f = coef, R = 5000), level = .95, type = "norm")
+
+# TIV
+favstats(~ TIV, participant, data = nons)
+
+(leveneTest(TIV ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(TIV ~ participant, data = nons, var.equal = TRUE)
+cohens_d(TIV ~ participant, data = nons)
+
+TIVdata <- nons %>% 
+  dplyr::select(, c(TIV, participant))
+
+set.seed(1993)
+confint(Boot(lm(TIV ~ as.factor(participant), data = na.omit(TIVdata)), f = coef, R = 5000), level = .95, type = "norm")
+
+# MVS
+favstats(~ MVS, participant, data = nons)
+
+(leveneTest(MVS ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(MVS ~ participant, data = nons, var.equal = FALSE)
+cohens_d(MVS ~ participant, data = nons)
+
+MVSdata <- nons %>% 
+  dplyr::select(, c(MVS, participant))
+
+set.seed(1993)
+confint(Boot(lm(MVS ~ as.factor(participant), data = na.omit(MVSdata)), f = coef, R = 5000), level = .95, type = "norm")
+
+# PHQ9_mean
+favstats(~ PHQ9_mean, participant, data = nons)
+
+(leveneTest(PHQ9_mean ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(PHQ9_mean ~ participant, data = nons, var.equal = TRUE)
+cohens_d(PHQ9_mean ~ participant, data = nons)
+
+PHQ9data <- nons %>% 
+  dplyr::select(, c(PHQ9_mean, participant))
+
+set.seed(1993)
+confint(Boot(lm(PHQ9_mean ~ as.factor(participant), data = na.omit(PHQ9data)), f = coef, R = 5000), level = .95, type = "norm")
+
+# GAD
+favstats(~ GAD_mean, participant, data = nons)
+
+(leveneTest(GAD_mean ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(GAD_mean ~ participant, data = nons, var.equal = TRUE)
+cohens_d(GAD_mean ~ participant, data = nons)
+
+GADdata <- nons %>% 
+  dplyr::select(, c(GAD_mean, participant))
+
+set.seed(1993)
+confint(Boot(lm(GAD_mean ~ as.factor(participant), data = na.omit(GADdata)), f = coef, R = 5000), level = .95, type = "norm")
+
+# lonely_mean
+favstats(~ lonely_mean, participant, data = nons)
+
+(leveneTest(lonely_mean ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(lonely_mean ~ participant, data = nons, var.equal = TRUE)
+cohens_d(lonely_mean ~ participant, data = nons)
+
+lonelydata <- nons %>% 
+  dplyr::select(, c(lonely_mean, participant))
+
+set.seed(1993)
+confint(Boot(lm(lonely_mean ~ as.factor(participant), data = na.omit(lonelydata)), f = coef, R = 5000), level = .95, type = "norm")
+
+# SWL_mean
+favstats(~ SWL_mean, participant, data = nons)
+
+(leveneTest(SWL_mean ~ as.factor(participant), data = nons))$`Pr(>F)` 
+t.test(SWL_mean ~ participant, data = nons, var.equal = TRUE)
+cohens_d(SWL_mean ~ participant, data = nons)
+
+SWLdata <- nons %>% 
+  dplyr::select(, c(SWL_mean, participant))
+
+set.seed(1993)
+confint(Boot(lm(SWL_mean ~ as.factor(participant), data = na.omit(SWLdata)), f = coef, R = 5000), level = .95, type = "norm")
+```
+
