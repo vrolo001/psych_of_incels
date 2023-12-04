@@ -28,7 +28,9 @@ library(apaTables)
 library(probemod)
 library(modplot)
 library(interactions)
-data <- read_csv("C:/Users/Vania/Desktop/psychology of incels/incel cleaned data.csv")
+
+dfincels <- incel_cleaned_data #data already imported manually and we're just renaming it
+
 ```
 
 The hypotheses regarding mental health variables were:
@@ -40,22 +42,35 @@ The hypotheses regarding mental health variables were:
 # Assessing reliability for sample subset
 
 ```{r}
-alphaNFR <- (alpha(select(data %>% filter(sex == 0), c(NFR_1:NFR_6))))$total$raw_alpha
-alphaME <- (alpha(select(data %>% filter(sex == 0), c(ME_1:ME_6))))$total$raw_alpha
-alphaLoE <- (alpha(select(data %>% filter(sex == 0), c(LoE_1:LoE_6))))$total$raw_alpha
-alphaRUM <- (alpha(select(data %>% filter(sex == 0), c(RUM_1:RUM_4))))$total$raw_alpha
-alphaTIV <- (alpha(select(data %>% filter(sex == 0), c(NFR_1:RUM_4))))$total$raw_alpha
-alphaMVS <- (alpha(select(data %>% filter(sex == 0), c(MVS_1:MVS_2_2))))$total$raw_alpha
-alphaPQ9 <- (alpha(select(data %>% filter(sex == 0), c(NHSdepress_1:NHSdepress_8))))$total$raw_alpha
-alphaGAD <- (alpha(select(data %>% filter(sex == 0), c(NHSdepress_9:NHSdepress_15))))$total$raw_alpha
-alphalone <- (alpha(select(data %>% filter(sex == 0), c(lonely_1:lonely_3))))$total$raw_alpha
-alphaSWL <- (alpha(select(data %>% filter(sex == 0), c(Q75_1:Q75_5))))$total$raw_alpha
-alphasoides <- (alpha(select(data %>% filter(sex == 0), c(soides_1, soides_2, soides_3))))$total$raw_alpha
-  
-data.frame("Cronbach's alpha for TIV" = c(alphaNFR, alphaME, alphaLoE, alphaRUM, alphaTIV,
-                                          alphaMVS, alphasoides, alphaPQ9, alphaGAD, alphalone, alphaSWL),
-                                      row.names =  c("Need for recognition", "Moral elitism", "Lack of empathy", "Rumination", "TIV",
-                                                     "Mate value", "SOI desire", "Depression", "Anxiety", "Loneliness", "Satisfaction with life"))
+# create list of constructs and items that comprise them
+
+var_list <- list("NFR" = c(paste0("NFR_", 1:6)),
+                 "ME" = c(paste0("ME_", 1:6)),
+                 "LoE" = c(paste0("LoE_", 1:6)),
+                 "RUM" = c(paste0("RUM_", 1:4)),
+                 "NFR" = c(paste0("NFR_", 1:4)),
+                 "MVS" = c(paste0("MVS_", 1:2), "MVS_2_1", "MVS_2_2"), 
+                 "PQ9" = c(paste0("NHSdepress_", 1:8)),
+                 "GAD" = c(paste0("NHSdepress_", 9:15)),
+                 "lone" = c(paste0("lonely_", 1:3)),
+                 "SWL" = c(paste0("Q75_", 1:5)),
+                 "soides" = c(paste0("soides_", 1:3)))
+
+# function to calculate alpha based on columns in a dataframe
+
+calculate_alpha <- function(cols, df) {
+  result <- psych::alpha(select(df %>% filter(sex == 0), all_of(cols)))$total$raw_alpha
+  return(result)
+}
+
+#calculate_alpha(var_list$NFR, dfincels) #just to test function works properly
+
+# use lapply to iterate over the list and apply the function
+alphas <- lapply(var_list, calculate_alpha, dfincels)
+
+data.frame(Variable = names(alphas),
+           Alpha = unlist(alphas))
+
 ```
 
 # Preparing for outliers and data filtering
@@ -63,7 +78,9 @@ data.frame("Cronbach's alpha for TIV" = c(alphaNFR, alphaME, alphaLoE, alphaRUM,
 A new sample subset was created by filtering the whole dataset by participants who were biologically male and answered the incel self-identification item. Age and ethnicity were selected for basic demographic information. Beyond the variables for the confirmatory hypotheses (i.e., mental health variables, MVS, TIV, and SOI desire), some exploratory variables were also selected. Z-scores by incel group (0 = non-incel, 1 = incel) were computed to remove outliers (Z-scores greater than +/- 3.30). Only age had any outliers (3 to be precise)
 
 ```{r}
-data_mh <- data %>%
+#create subset used for rest of mental health analyses
+
+incels_mh <- dfincels %>%
   dplyr::select(., (c(incel, sex, age, soides, MVS, 
                       PHQ9_mean, GAD_mean, lonely_mean, SWL_mean, PHQ9_all, GAD_all, lonely_all, SWL_all,
                       TIV_NFR, TIV_ME, TIV_LoE, TIV_RUM, TIV,
@@ -71,29 +88,38 @@ data_mh <- data %>%
                       politic, porn, forums, incel4life, blackpill, forumWellbeing, femopinion, feminist))) %>% #for exploratory
   filter(sex == 0 & incel == 0 | sex == 0 & incel == 1)
 
-data_mh <- data_mh %>%
-  group_by(incel) %>%
-  mutate(ageZ = scale(age),
-         soidesZ = scale(soides),
-         MVSZ = scale(MVS),
-         PHQ9Z = scale(PHQ9_all), GADZ = scale(GAD_all), lonelyZ = scale(lonely_all), SWLZ = scale(SWL_all),
-         PHQ9_meanZ = scale(PHQ9_mean), GAD_meanZ = scale(GAD_mean), lonely_meanZ = scale(lonely_mean), SWL_meanZ = scale(SWL_mean),
-         NFRZ = scale(TIV_NFR), MEZ = scale(TIV_ME), LoEZ = scale(TIV_LoE), RUMZ = scale(TIV_RUM), TIVZ = scale(TIV))%>%
-  ungroup()
+# scale variables for confirmatory hypotheses
 
-#averaged variables
-range(data_mh$ageZ, na.rm = TRUE) #3 outliers
-range(data_mh$soidesZ, na.rm = TRUE)
-range(data_mh$MVSZ, na.rm = TRUE)
-range(data_mh$NFRZ, na.rm = TRUE)
-range(data_mh$MEZ, na.rm = TRUE)
-range(data_mh$LoEZ, na.rm = TRUE)
-range(data_mh$RUMZ, na.rm = TRUE)
-range(data_mh$TIVZ, na.rm = TRUE)
-range(data_mh$PHQ9_meanZ, na.rm = TRUE)
-range(data_mh$GAD_meanZ, na.rm = TRUE)
-range(data_mh$lonely_meanZ, na.rm = TRUE)
-range(data_mh$SWL_meanZ, na.rm = TRUE)
+vars_scale <- c("age", "soides", "MVS", 
+                "PHQ9_mean", "GAD_mean", "lonely_mean", "SWL_mean", 
+                "PHQ9_all", "GAD_all", "lonely_all", "SWL_all",
+                "TIV_NFR", "TIV_ME", "TIV_LoE", "TIV_RUM", "TIV")
+
+for(var in vars_scale){
+  incels_mh <- incels_mh %>%
+    group_by(incel) %>%
+    mutate(!!paste0(var, "_Z") := c(scale(!!sym(var)))) %>%
+    ungroup()
+}
+
+# check for outliers
+
+scale_names <- c()
+
+for (vars in vars_scale){
+  scale_names <- c(scale_names, paste0(vars, "_Z"))
+}
+
+# create function that adds the total number of outliers(defined as > 3.30 or < -3.30)
+
+out_sum <- function(col, df){
+  result <- sum(df[[col]] > 3.30 | df[[col]] < -3.30, na.rm = TRUE)
+  return(result)
+}
+
+#out_sum("age_Z", incels_mh) #test function works
+sapply(scale_names, out_sum, incels_mh)
+
 ```
 
 # Independent sample t-tests
@@ -103,24 +129,21 @@ An initial look at mean age for incels vs non-incels showed a difference of appr
 ## Age
 
 ```{r}
-data_age <- data_mh %>%
-  filter(ageZ >= -3.30 & ageZ <= 3.30)
+incels_age <- incels_mh %>%
+  filter(age_Z >= -3.30 & age_Z <= 3.30)
 
-hist(lm(age ~ as.factor(incel), data = data_age)$residuals)
-qqPlot(lm(age ~ as.factor(incel), data = data_age)$residuals)
+favstats(~ age, incel, data = incels_age)
 
-favstats(~ age, incel, data = data_age)
-
-(leveneTest(age ~ as.factor(incel), data = data_age))$`Pr(>F)` #homogeneity not met
-t.test(age ~ incel, data = data_age, var.equal = FALSE) 
-cohens_d(age ~ incel, data = data_age)
+t.test(age ~ incel, data = incels_age, var.equal = 
+         ifelse((leveneTest(age ~ as.factor(incel), data = incels_age))$`Pr(>F)` > .05, TRUE, FALSE)[1]) 
+cohens_d(age ~ incel, data = incels_age)
 
 set.seed(1993)
-age.boot <- Boot(lm(age ~ incel, data = data_age), f = coef, R = 5000)
+age.boot <- Boot(lm(age ~ incel, data = incels_age), f = coef, R = 5000)
 confint(age.boot, level = .95, type = "norm")
 ```
 
-Incels were significantly younger (*M* = 27.94, *SD* = 7.26, *n* = 146) than non-incels (*M* = 32.98, *SD* = 9.66, *n* = 371), *t*(351.08) = -6.44, *p* < .001, *d* = .59, *95%BootCI*[-6.57, -3.50]. Thus, instead of computing independent samples t-tests to compare the two groups on our outcome variables (i.e., TIV, mental health, MVS, and SOI desire), we computed a series of multiple regressions using age as a control variable. These are currently on the main branch
+Incels were significantly younger (*M* = 27.94, *SD* = 7.26, *n* = 146) than non-incels (*M* = 32.98, *SD* = 9.66, *n* = 371), *t*(351.08) = -6.44, *p* < .001, *d* = .59, *95%BootCI*[-6.57, -3.50]. Thus, instead of computing independent samples t-tests to compare the two groups on our outcome variables (i.e., TIV, mental health, MVS, and SOI desire), we computed a series of multiple regressions using age as a control variable.
 
 ## Tendencies for interpersonal victimhood
 
